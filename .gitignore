@@ -1,0 +1,4 @@
+*.fig
+*.fig.db
+*.assets/
+/dali
