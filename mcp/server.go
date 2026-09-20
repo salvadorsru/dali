@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -15,6 +16,43 @@ import (
 	"github.com/salvadorsru/dali/query"
 	"github.com/salvadorsru/dali/semantic"
 )
+
+const progressToken = "progressToken"
+
+// notifier reports indexing progress to the MCP client as progress
+// notifications (only when the client supplies a progress token) and always
+// mirrors status lines to stderr, which editors surface in server logs.
+type notifier struct {
+	ctx     context.Context
+	session *mcp.ServerSession
+	token   any
+}
+
+func newNotifier(ctx context.Context, req *mcp.CallToolRequest) *notifier {
+	return &notifier{ctx: ctx, session: req.Session, token: req.Params.Meta[progressToken]}
+}
+
+func (n *notifier) start(message string) {
+	fmt.Fprintf(os.Stderr, "dali: %s…\n", message)
+	n.progress(message, 0, 0)
+}
+
+func (n *notifier) done(message string) {
+	fmt.Fprintf(os.Stderr, "dali: %s\n", message)
+	n.progress(message, 1, 1)
+}
+
+func (n *notifier) progress(message string, done, total float64) {
+	if n.token == nil {
+		return
+	}
+	_ = n.session.NotifyProgress(n.ctx, &mcp.ProgressNotificationParams{
+		ProgressToken: n.token,
+		Message:       message,
+		Progress:      done,
+		Total:         total,
+	})
+}
 
 type handlers struct {
 	def string
@@ -90,7 +128,8 @@ func discover() []string {
 }
 
 // service returns the query service for a fig file, opening and caching it.
-func (h *handlers) service(file string) (*query.Service, error) {
+// When the structural index is rebuilt on first use, the notifier reports it.
+func (h *handlers) service(file string, note *notifier) (*query.Service, error) {
 	if file == "" {
 		file = h.def
 	}
@@ -110,9 +149,15 @@ func (h *handlers) service(file string) (*query.Service, error) {
 	if svc, ok := h.opened[abs]; ok {
 		return svc, nil
 	}
-	svc, err := query.Open(abs)
+	base := filepath.Base(abs)
+	svc, err := query.OpenNotify(abs, false, func() {
+		note.start("indexing " + base)
+	})
 	if err != nil {
 		return nil, err
+	}
+	if svc.Rebuilt() {
+		note.done("indexed " + base)
 	}
 	h.opened[abs] = svc
 	return svc, nil
@@ -138,8 +183,9 @@ type searchOutput struct {
 	Results []NodeRef `json:"results"`
 }
 
-func (h *handlers) search(_ context.Context, _ *mcp.CallToolRequest, in searchInput) (*mcp.CallToolResult, searchOutput, error) {
-	svc, err := h.service(in.File)
+func (h *handlers) search(ctx context.Context, req *mcp.CallToolRequest, in searchInput) (*mcp.CallToolResult, searchOutput, error) {
+	note := newNotifier(ctx, req)
+	svc, err := h.service(in.File, note)
 	if err != nil {
 		return nil, searchOutput{}, err
 	}
@@ -171,11 +217,12 @@ type semanticInput struct {
 	Page  string `json:"page,omitempty" jsonschema:"filter by page name or id"`
 }
 
-func (h *handlers) semanticSearch(ctx context.Context, _ *mcp.CallToolRequest, in semanticInput) (*mcp.CallToolResult, searchOutput, error) {
+func (h *handlers) semanticSearch(ctx context.Context, req *mcp.CallToolRequest, in semanticInput) (*mcp.CallToolResult, searchOutput, error) {
 	if h.emb == nil {
 		return nil, searchOutput{}, errors.New("no embedder configured")
 	}
-	svc, err := h.service(in.File)
+	note := newNotifier(ctx, req)
+	svc, err := h.service(in.File, note)
 	if err != nil {
 		return nil, searchOutput{}, err
 	}
@@ -183,8 +230,17 @@ func (h *handlers) semanticSearch(ctx context.Context, _ *mcp.CallToolRequest, i
 	if limit <= 0 {
 		limit = 20
 	}
-	if _, err := semantic.Index(ctx, svc.DB(), h.emb); err != nil {
+	note.start("embedding")
+	stats, err := semantic.IndexWithProgress(ctx, svc.DB(), h.emb, func(done, total int) {
+		note.progress(fmt.Sprintf("embedding (%d/%d)", done, total), float64(done), float64(total))
+	})
+	if err != nil {
 		return nil, searchOutput{}, err
+	}
+	if stats.Indexed > 0 {
+		note.done(fmt.Sprintf("embedded %d/%d nodes", stats.Indexed, stats.Total))
+	} else {
+		note.done("embeddings up to date")
 	}
 	opts := query.Options{Query: in.Query, Type: in.Type, Limit: limit}
 	if in.Page != "" {
@@ -210,8 +266,8 @@ func (h *handlers) semanticSearch(ctx context.Context, _ *mcp.CallToolRequest, i
 	return nil, out, nil
 }
 
-func (h *handlers) getNode(_ context.Context, _ *mcp.CallToolRequest, in idInput) (*mcp.CallToolResult, NodeRef, error) {
-	svc, err := h.service(in.File)
+func (h *handlers) getNode(ctx context.Context, req *mcp.CallToolRequest, in idInput) (*mcp.CallToolResult, NodeRef, error) {
+	svc, err := h.service(in.File, newNotifier(ctx, req))
 	if err != nil {
 		return nil, NodeRef{}, err
 	}
@@ -222,30 +278,30 @@ func (h *handlers) getNode(_ context.Context, _ *mcp.CallToolRequest, in idInput
 	return nil, toRef(n), nil
 }
 
-func (h *handlers) getContext(_ context.Context, _ *mcp.CallToolRequest, in idInput) (*mcp.CallToolResult, ContextView, error) {
-	svc, err := h.service(in.File)
+func (h *handlers) getContext(ctx context.Context, req *mcp.CallToolRequest, in idInput) (*mcp.CallToolResult, ContextView, error) {
+	svc, err := h.service(in.File, newNotifier(ctx, req))
 	if err != nil {
 		return nil, ContextView{}, err
 	}
-	ctx, err := svc.Context(in.ID)
-	if err != nil || ctx == nil || ctx.Node == nil {
+	c, err := svc.Context(in.ID)
+	if err != nil || c == nil || c.Node == nil {
 		return nil, ContextView{}, err
 	}
 	view := ContextView{
-		Node:     toRef(ctx.Node),
-		Children: toRefs(ctx.Children),
-		Styles:   ctx.Styles,
-		Assets:   ctx.Assets,
+		Node:     toRef(c.Node),
+		Children: toRefs(c.Children),
+		Styles:   c.Styles,
+		Assets:   c.Assets,
 	}
-	for _, p := range ctx.Path {
+	for _, p := range c.Path {
 		view.Path = append(view.Path, toRef(p))
 	}
-	if ctx.Parent != nil {
-		ref := toRef(ctx.Parent)
+	if c.Parent != nil {
+		ref := toRef(c.Parent)
 		view.Parent = &ref
 	}
-	if ctx.Component != nil {
-		ref := toRef(ctx.Component)
+	if c.Component != nil {
+		ref := toRef(c.Component)
 		view.Component = &ref
 	}
 	return nil, view, nil
@@ -266,8 +322,8 @@ type childrenOutput struct {
 	Children []NodeRef `json:"children"`
 }
 
-func (h *handlers) getChildren(_ context.Context, _ *mcp.CallToolRequest, in idInput) (*mcp.CallToolResult, childrenOutput, error) {
-	svc, err := h.service(in.File)
+func (h *handlers) getChildren(ctx context.Context, req *mcp.CallToolRequest, in idInput) (*mcp.CallToolResult, childrenOutput, error) {
+	svc, err := h.service(in.File, newNotifier(ctx, req))
 	if err != nil {
 		return nil, childrenOutput{}, err
 	}
@@ -278,8 +334,8 @@ func (h *handlers) getChildren(_ context.Context, _ *mcp.CallToolRequest, in idI
 	return nil, childrenOutput{Children: toRefs(nodes)}, nil
 }
 
-func (h *handlers) getParent(_ context.Context, _ *mcp.CallToolRequest, in idInput) (*mcp.CallToolResult, NodeRef, error) {
-	svc, err := h.service(in.File)
+func (h *handlers) getParent(ctx context.Context, req *mcp.CallToolRequest, in idInput) (*mcp.CallToolResult, NodeRef, error) {
+	svc, err := h.service(in.File, newNotifier(ctx, req))
 	if err != nil {
 		return nil, NodeRef{}, err
 	}
@@ -299,8 +355,8 @@ type componentsOutput struct {
 	Components []NodeRef `json:"components"`
 }
 
-func (h *handlers) findComponents(_ context.Context, _ *mcp.CallToolRequest, in filterInput) (*mcp.CallToolResult, componentsOutput, error) {
-	svc, err := h.service(in.File)
+func (h *handlers) findComponents(ctx context.Context, req *mcp.CallToolRequest, in filterInput) (*mcp.CallToolResult, componentsOutput, error) {
+	svc, err := h.service(in.File, newNotifier(ctx, req))
 	if err != nil {
 		return nil, componentsOutput{}, err
 	}
@@ -318,8 +374,8 @@ type assetsOutput struct {
 	Assets []model.ImageRef `json:"assets"`
 }
 
-func (h *handlers) findAssets(_ context.Context, _ *mcp.CallToolRequest, in filterInput) (*mcp.CallToolResult, assetsOutput, error) {
-	svc, err := h.service(in.File)
+func (h *handlers) findAssets(ctx context.Context, req *mcp.CallToolRequest, in filterInput) (*mcp.CallToolResult, assetsOutput, error) {
+	svc, err := h.service(in.File, newNotifier(ctx, req))
 	if err != nil {
 		return nil, assetsOutput{}, err
 	}
@@ -339,8 +395,8 @@ func (h *handlers) findAssets(_ context.Context, _ *mcp.CallToolRequest, in filt
 	return nil, assetsOutput{Assets: assets}, nil
 }
 
-func (h *handlers) findText(_ context.Context, _ *mcp.CallToolRequest, in searchInput) (*mcp.CallToolResult, searchOutput, error) {
-	svc, err := h.service(in.File)
+func (h *handlers) findText(ctx context.Context, req *mcp.CallToolRequest, in searchInput) (*mcp.CallToolResult, searchOutput, error) {
+	svc, err := h.service(in.File, newNotifier(ctx, req))
 	if err != nil {
 		return nil, searchOutput{}, err
 	}

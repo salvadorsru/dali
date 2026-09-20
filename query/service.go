@@ -24,11 +24,17 @@ func Open(figPath string) (*Service, error) {
 // OpenWith opens the index. When force is true the structural index is rebuilt
 // even if the source file is unchanged.
 func OpenWith(figPath string, force bool) (*Service, error) {
+	return OpenNotify(figPath, force, nil)
+}
+
+// OpenNotify is OpenWith plus a callback invoked right before the structural
+// index is rebuilt, so callers can report indexing progress.
+func OpenNotify(figPath string, force bool, building func()) (*Service, error) {
 	db, err := index.Open(workspace.DB(figPath))
 	if err != nil {
 		return nil, err
 	}
-	rebuilt, err := ensure(db, figPath, force)
+	rebuilt, err := ensure(db, figPath, force, building)
 	if err != nil {
 		db.Close()
 		return nil, err
@@ -44,7 +50,7 @@ func (s *Service) Rebuilt() bool { return s.rebuilt }
 // DB exposes the underlying index for indexing passes (embeddings).
 func (s *Service) DB() *index.DB { return s.db }
 
-func ensure(db *index.DB, figPath string, force bool) (bool, error) {
+func ensure(db *index.DB, figPath string, force bool, building func()) (bool, error) {
 	want, err := sourceKey(figPath)
 	if err != nil {
 		return false, err
@@ -57,6 +63,9 @@ func ensure(db *index.DB, figPath string, force bool) (bool, error) {
 		if got == want {
 			return false, nil
 		}
+	}
+	if building != nil {
+		building()
 	}
 	f, err := parser.Open(figPath)
 	if err != nil {
