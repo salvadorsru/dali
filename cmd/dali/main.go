@@ -26,6 +26,8 @@ var commands = map[string]func([]string) error{
 	"path":            cmdPath,
 	"subtree":         cmdSubtree,
 	"components":      cmdComponents,
+	"usages":          cmdUsages,
+	"dependents":      cmdDependents,
 	"assets":          cmdAssets,
 	"fonts":           cmdFonts,
 	"variables":       cmdVariables,
@@ -198,11 +200,15 @@ Commands:
   path <id>                   Root-to-node path
   subtree <id> [--depth N]    Subtree with depth, styles and images per node (0 = full)
   components                  List components
+  usages <id>                 List every page placement of a component
+  dependents <id>             Impact: the containers (screens) that place a component
   assets                      List image assets
   fonts                       List fonts in use
   variables                   List design tokens with values per mode
   styles                      List style definitions (name, kind, value, uses)
-  query <expression>          Structural query DSL (type=, name~, descendants())
+  query <expression>          Structural query DSL (type=, name~, text~, font=, page~,
+                              component=, visible=, width>=, height<=, descendants()...
+                              terms combine with AND)
   xpath <expression>          XPath subset over the tree (/ // * @name= @name~ contains()) [--limit N]
   lint [--preset P]          Design + accessibility checks (recommended, strict, accessibility)
   analyze <kind>             Geometry stats: spacing | clusters | overlaps

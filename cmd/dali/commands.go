@@ -65,6 +65,11 @@ func cmdSearch(args []string) error {
 	if jsonOut {
 		return output.JSON(os.Stdout, results)
 	}
+	if len(results) == 0 {
+		if sugs, serr := svc.SuggestNames(q, 8); serr == nil && suggestHint(sugs, q) {
+			return nil
+		}
+	}
 	rows := make([][]string, 0, len(results))
 	for _, r := range results {
 		rows = append(rows, []string{output.ID(r.ID), output.Type(r.Type), truncate(r.Name, 40), output.Dim(truncate(r.Path, 60))})
@@ -342,25 +347,14 @@ func cmdQuery(args []string) error {
 
 	nodes, err := svc.Query(expr)
 	if err != nil {
-		if s, serr := svc.SuggestNames(expr, 8); serr == nil && len(s) > 0 {
-			names := make([]string, 0, len(s))
-			for _, x := range s {
-				names = append(names, output.Dim(x.Name))
-			}
-			fmt.Fprintf(os.Stderr, "%s no match for %q, did you mean: %s\n",
-				output.Warn("dali:"), expr, strings.Join(names, ", "))
+		if sugs, serr := svc.SuggestNames(expr, 8); serr == nil && suggestHint(sugs, expr) {
 			return nil
 		}
 		return err
 	}
 	if len(nodes) == 0 {
-		if s, serr := svc.SuggestNames(expr, 8); serr == nil && len(s) > 0 {
-			names := make([]string, 0, len(s))
-			for _, x := range s {
-				names = append(names, output.Dim(x.Name))
-			}
-			fmt.Fprintf(os.Stderr, "%s no matches for %q, did you mean: %s\n",
-				output.Warn("dali:"), expr, strings.Join(names, ", "))
+		if sugs, serr := svc.SuggestNames(expr, 8); serr == nil && suggestHint(sugs, expr) {
+			return nil
 		}
 	}
 	return printNodes(nodes)
@@ -389,7 +383,76 @@ func cmdXPath(args []string) error {
 	if *limit > 0 && len(nodes) > *limit {
 		nodes = nodes[:*limit]
 	}
+	if len(nodes) == 0 {
+		if sugs, serr := svc.SuggestXPath(expr, 8); serr == nil && suggestHint(sugs, expr) {
+			return nil
+		}
+	}
 	return printNodes(nodes)
+}
+
+func cmdUsages(args []string) error {
+	id, svc, err := openWithID(args)
+	if err != nil {
+		return err
+	}
+	defer svc.Close()
+
+	n, err := svc.Node(id)
+	if err != nil {
+		return err
+	}
+	if n == nil {
+		return fmt.Errorf("node %q not found", id)
+	}
+	places, err := svc.Usages(id)
+	if err != nil {
+		return err
+	}
+	if jsonOut {
+		return output.JSON(os.Stdout, map[string]any{
+			"component": n,
+			"instances": len(places),
+			"uses":      places,
+		})
+	}
+	fmt.Printf("%s %s  %s\n", output.ID(n.ID), output.Type(string(n.Type)), output.Bold(n.Name))
+	fmt.Printf("%s %d\n", output.Label("instances:"), len(places))
+	return printPlacements(svc, places)
+}
+
+func cmdDependents(args []string) error {
+	id, svc, err := openWithID(args)
+	if err != nil {
+		return err
+	}
+	defer svc.Close()
+
+	n, err := svc.Node(id)
+	if err != nil {
+		return err
+	}
+	if n == nil {
+		return fmt.Errorf("node %q not found", id)
+	}
+	deps, err := svc.Dependents(id)
+	if err != nil {
+		return err
+	}
+	if jsonOut {
+		return output.JSON(os.Stdout, deps)
+	}
+	fmt.Printf("%s %s  %s\n", output.ID(n.ID), output.Type(string(n.Type)), output.Bold(n.Name))
+	if len(deps) == 0 {
+		fmt.Fprintf(os.Stderr, "%s no placements for component %q\n", output.Warn("dali:"), id)
+		return nil
+	}
+	rows := make([][]string, 0, len(deps))
+	for _, d := range deps {
+		rows = append(rows, []string{output.ID(d.ID), output.Type(d.Type), truncate(d.Name, 40), strconv.Itoa(d.Places)})
+	}
+	output.Table(os.Stdout, []string{"CONTAINER", "TYPE", "NAME", "PLACES"}, rows)
+	return nil
 }
 
 func cmdExtractAssets(args []string) error {
@@ -441,6 +504,43 @@ func printNodes(nodes []*model.Node) error {
 	}
 	output.Table(os.Stdout, []string{"ID", "TYPE", "NAME", "TEXT"}, rows)
 	return nil
+}
+
+// printPlacements lists component placements with the page they live on,
+// resolving page ids through the service's page index.
+func printPlacements(svc *query.Service, places []*model.Node) error {
+	if jsonOut {
+		return output.JSON(os.Stdout, places)
+	}
+	pages, err := svc.Pages()
+	if err != nil {
+		return err
+	}
+	pageName := make(map[string]string, len(pages))
+	for _, p := range pages {
+		pageName[p.ID] = p.Name
+	}
+	rows := make([][]string, 0, len(places))
+	for _, p := range places {
+		rows = append(rows, []string{output.ID(p.ID), output.Type(string(p.Type)), truncate(p.Name, 40), output.Dim(pageName[p.PageID])})
+	}
+	output.Table(os.Stdout, []string{"ID", "TYPE", "NAME", "PAGE"}, rows)
+	return nil
+}
+
+// suggestHint prints token-scored name suggestions to stderr when a search
+// matched nothing. It reports whether anything was printed.
+func suggestHint(sugs []query.Suggest, pattern string) bool {
+	if jsonOut || len(sugs) == 0 {
+		return false
+	}
+	names := make([]string, 0, len(sugs))
+	for _, s := range sugs {
+		names = append(names, output.Dim(s.Name))
+	}
+	fmt.Fprintf(os.Stderr, "%s no matches for %q, did you mean: %s\n",
+		output.Warn("dali:"), pattern, strings.Join(names, ", "))
+	return true
 }
 
 func field(label, value string) {
