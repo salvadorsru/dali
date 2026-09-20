@@ -24,6 +24,7 @@ func cmdInspect(args []string) error {
 	field("images:", fmt.Sprintf("%d", len(doc.Assets())))
 	field("fonts:", fmt.Sprintf("%d", len(doc.Fonts())))
 	field("styles:", fmt.Sprintf("%d", len(doc.Styles())))
+	field("variables:", fmt.Sprintf("%d", len(doc.Variables)))
 	fmt.Println()
 	fmt.Println(output.Title("Node types"))
 	printCounts(counts)

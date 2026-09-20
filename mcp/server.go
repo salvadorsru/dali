@@ -19,6 +19,10 @@ import (
 
 const progressToken = "progressToken"
 
+// Version is reported to MCP clients. The CLI overlays its build-time version
+// before serving; providers and tests may leave it at the dev default.
+var Version = "dev"
+
 // notifier reports indexing progress to the MCP client as progress
 // notifications (only when the client supplies a progress token) and always
 // mirrors status lines to stderr, which editors surface in server logs.
@@ -64,17 +68,54 @@ type handlers struct {
 }
 
 type NodeRef struct {
-	ID    string  `json:"id" jsonschema:"node id, e.g. 123:456"`
-	Type  string  `json:"type" jsonschema:"node type, e.g. FRAME, TEXT, SYMBOL"`
-	Name  string  `json:"name" jsonschema:"node name"`
-	Text  string  `json:"text,omitempty" jsonschema:"text content for TEXT nodes"`
-	Page  string  `json:"page,omitempty" jsonschema:"page name"`
-	Path  string  `json:"path,omitempty" jsonschema:"path from page to node"`
-	Score float64 `json:"score,omitempty" jsonschema:"similarity score for semantic results"`
+	ID       string  `json:"id" jsonschema:"node id, e.g. 123:456"`
+	Type     string  `json:"type" jsonschema:"node type, e.g. FRAME, TEXT, SYMBOL"`
+	Name     string  `json:"name" jsonschema:"node name"`
+	Text     string  `json:"text,omitempty" jsonschema:"text content for TEXT nodes"`
+	Page     string  `json:"page,omitempty" jsonschema:"page name"`
+	PagePath string  `json:"page_path,omitempty" jsonschema:"path from page to node"`
+	Score    float64 `json:"score,omitempty" jsonschema:"similarity score for semantic results"`
+
+	X       float64 `json:"x" jsonschema:"left offset"`
+	Y       float64 `json:"y" jsonschema:"top offset"`
+	Width   float64 `json:"width" jsonschema:"width"`
+	Height  float64 `json:"height" jsonschema:"height"`
+	Visible bool    `json:"visible" jsonschema:"visible"`
+	Opacity float64 `json:"opacity" jsonschema:"opacity"`
+
+	FontFamily    string  `json:"font_family,omitempty"`
+	FontStyle     string  `json:"font_style,omitempty"`
+	FontSize      float64 `json:"font_size,omitempty"`
+	TextAlign     string  `json:"text_align,omitempty" jsonschema:"horizontal alignment: LEFT, CENTER, RIGHT, JUSTIFIED"`
+	TextAlignV    string  `json:"text_align_v,omitempty" jsonschema:"vertical alignment: TOP, CENTER, BOTTOM"`
+	LineHeight    float64 `json:"line_height,omitempty"`
+	LetterSpacing float64 `json:"letter_spacing,omitempty"`
+	Decoration    string  `json:"decoration,omitempty" jsonschema:"UNDERLINE or STRIKETHROUGH"`
+	Rotation      float64 `json:"rotation,omitempty" jsonschema:"rotation in degrees"`
+	ClipContent   bool    `json:"clip_content,omitempty" jsonschema:"children clipped to bounds"`
+
+	Path  string               `json:"path,omitempty" jsonschema:"SVG path geometry for vector shapes"`
+	Runs  []model.TextRun      `json:"runs,omitempty" jsonschema:"styled text runs spanning the text"`
+	Props []model.PropOverride `json:"props,omitempty" jsonschema:"component override bindings on instances"`
 }
 
 func toRef(n *model.Node) NodeRef {
-	return NodeRef{ID: n.ID, Type: string(n.Type), Name: n.Name, Text: n.Text, Page: n.PageID}
+	ref := NodeRef{
+		ID: n.ID, Type: string(n.Type), Name: n.Name, Text: n.Text, Page: n.PageID,
+		X: n.X, Y: n.Y, Width: n.Width, Height: n.Height, Visible: n.Visible, Opacity: n.Opacity,
+		FontFamily: n.FontFamily, FontStyle: n.FontStyle, FontSize: n.FontSize,
+		TextAlign: n.TextAlign, TextAlignV: n.TextAlignV, LineHeight: n.LineHeight,
+		LetterSpacing: n.LetterSpacing, Decoration: n.Decoration,
+		Rotation: n.Rotation, ClipContent: n.ClipContent,
+		Path: n.Path,
+	}
+	if len(n.Runs) > 0 {
+		ref.Runs = n.Runs
+	}
+	if len(n.Props) > 0 {
+		ref.Props = n.Props
+	}
+	return ref
 }
 
 func toRefs(nodes []*model.Node) []NodeRef {
@@ -101,19 +142,21 @@ func newServer(def string) (*mcp.Server, *handlers) {
 		opened:  make(map[string]*query.Service),
 		figures: discover(),
 	}
-	s := mcp.NewServer(&mcp.Implementation{Name: "dali", Version: "0.1.0"}, nil)
+	s := mcp.NewServer(&mcp.Implementation{Name: "dali", Version: Version}, nil)
 
 	mcp.AddTool(s, &mcp.Tool{Name: "search_figma", Description: "Full-text search across node names and text content."}, h.search)
 	mcp.AddTool(s, &mcp.Tool{Name: "semantic_search_figma", Description: "Semantic (vector) search across nodes. Use for conceptual queries with no exact text match."}, h.semanticSearch)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_node", Description: "Get a single node by id, including the styles applied to it (name, kind, value)."}, h.getNode)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_context", Description: "Get structural context for a node: path, parent, children, component, styles, assets."}, h.getContext)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_children", Description: "List the direct children of a node."}, h.getChildren)
+	mcp.AddTool(s, &mcp.Tool{Name: "get_descendants", Description: "Fetch a whole subtree in one call: every descendant in document order with geometry, styles and images. Optional depth limit. Use this to render a component without repeated get_node round trips."}, h.getDescendants)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_parent", Description: "Get the parent of a node."}, h.getParent)
 	mcp.AddTool(s, &mcp.Tool{Name: "find_components", Description: "List components, optionally filtered by name substring."}, h.findComponents)
 	mcp.AddTool(s, &mcp.Tool{Name: "find_assets", Description: "List image assets, optionally filtered by name substring."}, h.findAssets)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_styles", Description: "List style definitions (name, kind, resolved value, usage count), optionally filtered by name substring."}, h.getStyles)
 	mcp.AddTool(s, &mcp.Tool{Name: "find_text", Description: "Search text content of TEXT nodes."}, h.findText)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_figs", Description: "List the .fig/.deck files available in the current directory."}, h.listFigs)
+	mcp.AddTool(s, &mcp.Tool{Name: "variables", Description: "List design tokens (variables) with their values per mode, optionally filtered by name substring."}, h.variables)
 
 	return s, h
 }
@@ -208,7 +251,7 @@ func (h *handlers) search(ctx context.Context, req *mcp.CallToolRequest, in sear
 	}
 	out := searchOutput{Results: make([]NodeRef, 0, len(results))}
 	for _, r := range results {
-		out.Results = append(out.Results, NodeRef{ID: r.ID, Type: r.Type, Name: r.Name, Text: r.Text, Page: r.Page, Path: r.Path})
+		out.Results = append(out.Results, NodeRef{ID: r.ID, Type: r.Type, Name: r.Name, Text: r.Text, Page: r.Page, PagePath: r.Path})
 	}
 	return nil, out, nil
 }
@@ -269,15 +312,15 @@ func (h *handlers) semanticSearch(ctx context.Context, req *mcp.CallToolRequest,
 	out := searchOutput{Results: make([]NodeRef, 0, len(results))}
 	for _, r := range results {
 		out.Results = append(out.Results, NodeRef{
-			ID: r.ID, Type: r.Type, Name: r.Name, Text: r.Text, Page: r.Page, Path: r.Path, Score: r.Score,
+			ID: r.ID, Type: r.Type, Name: r.Name, Text: r.Text, Page: r.Page, PagePath: r.Path, Score: r.Score,
 		})
 	}
 	return nil, out, nil
 }
 
 type NodeView struct {
-	Node   NodeRef        `json:"node"`
-	Styles []model.Style  `json:"styles"`
+	Node   NodeRef       `json:"node"`
+	Styles []model.Style `json:"styles"`
 }
 
 func (h *handlers) getNode(ctx context.Context, req *mcp.CallToolRequest, in idInput) (*mcp.CallToolResult, NodeView, error) {
@@ -364,6 +407,76 @@ func (h *handlers) getParent(ctx context.Context, req *mcp.CallToolRequest, in i
 	return nil, toRef(n), nil
 }
 
+type descendantsInput struct {
+	File  string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
+	ID    string `json:"id" jsonschema:"node id, e.g. 123:456"`
+	Depth int    `json:"depth,omitempty" jsonschema:"max depth from the node's children; 0 (default) walks the whole subtree"`
+}
+
+type SubtreeView struct {
+	Node   NodeRef          `json:"node"`
+	Depth  int              `json:"depth,omitempty"`
+	Styles []model.Style    `json:"styles"`
+	Images []model.ImageRef `json:"images"`
+}
+
+type SubtreeResult struct {
+	Root        NodeRef       `json:"root"`
+	Descendants []SubtreeView `json:"descendants"`
+}
+
+func (h *handlers) getDescendants(ctx context.Context, req *mcp.CallToolRequest, in descendantsInput) (*mcp.CallToolResult, SubtreeResult, error) {
+	svc, err := h.service(in.File, newNotifier(ctx, req))
+	if err != nil {
+		return nil, SubtreeResult{}, err
+	}
+	out, err := SubtreeOf(svc, in.ID, in.Depth)
+	return nil, out, err
+}
+
+// SubtreeOf builds the get_descendants view ('root + descendants with depth, styles'
+// and images') for a user-supplied node id.
+func SubtreeOf(svc *query.Service, id string, maxDepth int) (SubtreeResult, error) {
+	root, err := svc.Node(id)
+	if err != nil {
+		return SubtreeResult{}, err
+	}
+	if root == nil {
+		return SubtreeResult{}, nil
+	}
+	if maxDepth < 0 {
+		maxDepth = 0
+	}
+	items, err := svc.Subtree(id, maxDepth)
+	if err != nil {
+		return SubtreeResult{}, err
+	}
+	ids := make([]string, 0, len(items))
+	for _, it := range items {
+		ids = append(ids, it.Node.ID)
+	}
+	sby, err := svc.StylesOfMany(ids)
+	if err != nil {
+		return SubtreeResult{}, err
+	}
+	aby, err := svc.AssetsOfMany(ids)
+	if err != nil {
+		return SubtreeResult{}, err
+	}
+	out := SubtreeResult{Root: toRef(root), Descendants: make([]SubtreeView, 0, len(items))}
+	for _, it := range items {
+		view := SubtreeView{Node: toRef(it.Node), Depth: it.Depth}
+		if s := sby[it.Node.ID]; len(s) > 0 {
+			view.Styles = s
+		}
+		if a := aby[it.Node.ID]; len(a) > 0 {
+			view.Images = a
+		}
+		out.Descendants = append(out.Descendants, view)
+	}
+	return out, nil
+}
+
 type filterInput struct {
 	File string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
 	Name string `json:"name,omitempty" jsonschema:"optional name substring filter"`
@@ -448,10 +561,10 @@ func (h *handlers) findText(ctx context.Context, req *mcp.CallToolRequest, in se
 		limit = 20
 	}
 	results, err := svc.UnifiedSearch(ctx, h.emb, query.UnifiedOptions{
-		Query:  in.Query,
-		Type:   string(model.TypeText),
-		Limit:  limit * 4,
-		Mode:   query.ModeHybrid,
+		Query: in.Query,
+		Type:  string(model.TypeText),
+		Limit: limit * 4,
+		Mode:  query.ModeHybrid,
 	})
 	if err != nil {
 		return nil, searchOutput{}, err
@@ -461,7 +574,7 @@ func (h *handlers) findText(ctx context.Context, req *mcp.CallToolRequest, in se
 		if r.Type != string(model.TypeText) {
 			continue
 		}
-		out.Results = append(out.Results, NodeRef{ID: r.ID, Type: r.Type, Name: r.Name, Text: r.Text, Page: r.Page, Path: r.Path})
+		out.Results = append(out.Results, NodeRef{ID: r.ID, Type: r.Type, Name: r.Name, Text: r.Text, Page: r.Page, PagePath: r.Path})
 		if len(out.Results) >= limit {
 			break
 		}
@@ -471,6 +584,34 @@ func (h *handlers) findText(ctx context.Context, req *mcp.CallToolRequest, in se
 
 type figsOutput struct {
 	Files []string `json:"files"`
+}
+
+type variablesOutput struct {
+	Variables []model.Variable `json:"variables"`
+}
+
+func (h *handlers) variables(ctx context.Context, req *mcp.CallToolRequest, in filterInput) (*mcp.CallToolResult, variablesOutput, error) {
+	svc, err := h.service(in.File, newNotifier(ctx, req))
+	if err != nil {
+		return nil, variablesOutput{}, err
+	}
+	vars, err := svc.Variables()
+	if err != nil {
+		return nil, variablesOutput{}, err
+	}
+	if in.Name != "" {
+		var filtered []model.Variable
+		for _, v := range vars {
+			if containsFold(v.Name, in.Name) || containsFold(v.Set, in.Name) {
+				filtered = append(filtered, v)
+			}
+		}
+		vars = filtered
+	}
+	if vars == nil {
+		vars = []model.Variable{}
+	}
+	return nil, variablesOutput{Variables: vars}, nil
 }
 
 func (h *handlers) listFigs(_ context.Context, _ *mcp.CallToolRequest, _ filterInput) (*mcp.CallToolResult, figsOutput, error) {

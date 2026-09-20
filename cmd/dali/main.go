@@ -24,9 +24,11 @@ var commands = map[string]func([]string) error{
 	"children":        cmdChildren,
 	"parent":          cmdParent,
 	"path":            cmdPath,
+	"subtree":         cmdSubtree,
 	"components":      cmdComponents,
 	"assets":          cmdAssets,
 	"fonts":           cmdFonts,
+	"variables":       cmdVariables,
 	"styles":          cmdStyles,
 	"query":           cmdQuery,
 	"index":           cmdIndex,
@@ -183,16 +185,18 @@ current directory is used.
 
 Commands:
   inspect                     Document counts
-  search <query>              Full-text search (FTS5)
+  search <query>              Full-text search (FTS5) [--limit N] [--hybrid]
   semantic-search <query>     Vector search [--limit N] [--type T] [--page P] [--hybrid]
   node <id>                   Show one node
   context <id>                Path, parent, children, component, styles, assets
   children <id>               Direct children
   parent <id>                 Parent node
   path <id>                   Root-to-node path
+  subtree <id> [--depth N]    Subtree with depth, styles and images per node (0 = full)
   components                  List components
   assets                      List image assets
   fonts                       List fonts in use
+  variables                   List design tokens with values per mode
   styles                      List style definitions (name, kind, value, uses)
   query <expression>          Structural query (type=, name~, descendants())
   index [--embeddings]        Build the structural index; --embeddings adds the vector index

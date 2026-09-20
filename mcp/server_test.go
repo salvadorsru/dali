@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"sync"
@@ -12,6 +13,15 @@ import (
 )
 
 const sample = "../woments.fig"
+
+func textOf(res *mcp.CallToolResult) string {
+	for _, c := range res.Content {
+		if tc, ok := c.(*mcp.TextContent); ok {
+			return tc.Text
+		}
+	}
+	return ""
+}
 
 func TestTools(t *testing.T) {
 	if _, err := os.Stat(sample); err != nil {
@@ -39,7 +49,36 @@ func TestTools(t *testing.T) {
 		t.Fatal(err)
 	}
 	if res.IsError || len(res.Content) == 0 {
-		t.Fatalf("search_figma returned no content: %+v", res)
+		t.Fatalf("search_figma returned no content: %+v body=%q", res, textOf(res))
+	}
+	var search searchOutput
+	if err := json.Unmarshal([]byte(textOf(res)), &search); err != nil {
+		t.Fatalf("search_figma parse: %v", err)
+	}
+	if len(search.Results) == 0 || search.Results[0].ID == "" {
+		t.Fatalf("search_figma results = %+v", search)
+	}
+	nodeID := search.Results[0].ID
+
+	// get_descendants returns the full subtree with geometry, styles and images.
+	res, err = session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "get_descendants",
+		Arguments: map[string]any{"id": nodeID},
+	})
+	if err != nil || res.IsError {
+		t.Fatalf("get_descendants: %v %+v body=%q", err, res, textOf(res))
+	}
+	var tree SubtreeResult
+	if err := json.Unmarshal([]byte(textOf(res)), &tree); err != nil {
+		t.Fatalf("get_descendants parse: %v", err)
+	}
+	if tree.Root.ID != nodeID {
+		t.Fatalf("tree root = %+v", tree.Root)
+	}
+	if len(tree.Descendants) > 0 {
+		if n := tree.Descendants[0].Node; n.Width == 0 && n.Height == 0 {
+			t.Fatalf("descendant missing geometry: %+v", n)
+		}
 	}
 
 	// An explicit file argument overrides the default fig.
@@ -100,7 +139,7 @@ func TestIndexNotification(t *testing.T) {
 		t.Fatal(err)
 	}
 	if res.IsError || len(res.Content) == 0 {
-		t.Fatalf("search_figma returned no content: %+v", res)
+		t.Fatalf("search_figma returned no content: %+v body=%q", res, textOf(res))
 	}
 
 	deadline := time.Now().Add(2 * time.Second)

@@ -13,7 +13,7 @@ func load(path string) (*model.Document, error) {
 		return nil, err
 	}
 	defer f.Close()
-	return model.Build(f.NodeChanges()), nil
+	return model.Build(f.NodeChanges(), f.Blobs()), nil
 }
 
 func arg(args []string, i int, name string) (string, error) {

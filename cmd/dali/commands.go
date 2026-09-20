@@ -2,16 +2,19 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/salvadorsru/dali/assets"
+	"github.com/salvadorsru/dali/embed"
 	"github.com/salvadorsru/dali/mcp"
 	"github.com/salvadorsru/dali/model"
 	"github.com/salvadorsru/dali/output"
 	"github.com/salvadorsru/dali/query"
+	"github.com/salvadorsru/dali/semantic"
 )
 
 func open(path string) (*query.Service, error) {
@@ -19,20 +22,42 @@ func open(path string) (*query.Service, error) {
 }
 
 func cmdSearch(args []string) error {
-	text, err := arg(args, 0, "query")
+	q, err := arg(args, 0, "query")
 	if err != nil {
 		return err
 	}
+	fs := flag.NewFlagSet("search", flag.ContinueOnError)
+	limit := fs.Int("limit", 50, "max results")
+	hybrid := fs.Bool("hybrid", false, "combine with semantic search (RRF)")
+	yes := fs.Bool("yes", false, "confirm downloads without prompting")
+	if err := fs.Parse(args[1:]); err != nil {
+		return err
+	}
+	if *yes {
+		os.Setenv("DALI_EMBED_YES", "1")
+	}
+
 	svc, err := open(figFile)
 	if err != nil {
 		return err
 	}
 	defer svc.Close()
 
-	results, err := svc.UnifiedSearch(context.Background(), nil, query.UnifiedOptions{
-		Query: text,
-		Limit: 50,
-		Mode:  query.ModeText,
+	var emb embed.Embedder
+	mode := query.ModeText
+	if *hybrid {
+		emb = embed.FromEnv()
+		defer embed.Close(emb)
+		mode = query.ModeHybrid
+		if _, err := semantic.IndexWithProgress(context.Background(), svc.DB(), emb, progress("embeddings")); err != nil {
+			return err
+		}
+	}
+
+	results, err := svc.UnifiedSearch(context.Background(), emb, query.UnifiedOptions{
+		Query: q,
+		Limit: *limit,
+		Mode:  mode,
 	})
 	if err != nil {
 		return err
@@ -149,6 +174,45 @@ func cmdPath(args []string) error {
 	return nil
 }
 
+func cmdSubtree(args []string) error {
+	id, svc, err := openWithID(args)
+	if err != nil {
+		return err
+	}
+	defer svc.Close()
+
+	depth := 0
+	for i, a := range args {
+		if a == "--depth" && i+1 < len(args) {
+			d, err := strconv.Atoi(args[i+1])
+			if err != nil {
+				return fmt.Errorf("--depth: %w", err)
+			}
+			depth = d
+		}
+	}
+	res, err := mcp.SubtreeOf(svc, id, depth)
+	if err != nil {
+		return err
+	}
+	if res.Root.ID == "" {
+		return fmt.Errorf("node %q not found", id)
+	}
+	if jsonOut {
+		return output.JSON(os.Stdout, res)
+	}
+	fmt.Printf("%s %s%s\n", output.Type(res.Root.Type), res.Root.Name, output.Dim(" "+res.Root.ID))
+	for _, d := range res.Descendants {
+		prefix := strings.Repeat("  ", d.Depth) + "└── "
+		extra := ""
+		if d.Node.Text != "" {
+			extra = output.Dim(" " + strconv.Quote(truncate(d.Node.Text, 24)))
+		}
+		fmt.Printf("%s%s %s%s\n", prefix, output.Type(d.Node.Type), d.Node.Name, extra)
+	}
+	return nil
+}
+
 func cmdComponents(args []string) error {
 	svc, err := open(figFile)
 	if err != nil {
@@ -208,6 +272,35 @@ func cmdFonts(args []string) error {
 		rows = append(rows, []string{f.Family, output.Dim(f.Style), strconv.Itoa(f.Count)})
 	}
 	output.Table(os.Stdout, []string{"FAMILY", "STYLE", "COUNT"}, rows)
+	return nil
+}
+
+func cmdVariables(args []string) error {
+	svc, err := open(figFile)
+	if err != nil {
+		return err
+	}
+	defer svc.Close()
+
+	vars, err := svc.Variables()
+	if err != nil {
+		return err
+	}
+	if jsonOut {
+		return output.JSON(os.Stdout, vars)
+	}
+	rows := make([][]string, 0, len(vars))
+	for _, v := range vars {
+		value := ""
+		for _, m := range v.Modes {
+			if value != "" {
+				value += " · "
+			}
+			value += m.Mode + "=" + m.Value
+		}
+		rows = append(rows, []string{v.Set, v.Name, output.Dim(v.Type), truncate(value, 60)})
+	}
+	output.Table(os.Stdout, []string{"SET", "NAME", "TYPE", "VALUES"}, rows)
 	return nil
 }
 
@@ -274,6 +367,7 @@ func cmdExtractAssets(args []string) error {
 }
 
 func cmdMCP(args []string) error {
+	mcp.Version = version
 	return mcp.Serve(context.Background(), figFile)
 }
 
