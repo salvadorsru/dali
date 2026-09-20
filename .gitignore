@@ -3,3 +3,4 @@
 *.assets/
 .dali/
 /dali
+/dist/
