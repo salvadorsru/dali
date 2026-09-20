@@ -3,63 +3,169 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/salvadorsru/dali/embed"
+	"github.com/salvadorsru/dali/output"
 )
 
-var jsonOut bool
+var (
+	jsonOut bool
+	figFile string
+)
+
+var commands = map[string]func([]string) error{
+	"inspect":         cmdInspect,
+	"search":          cmdSearch,
+	"semantic-search": cmdSemanticSearch,
+	"node":            cmdNode,
+	"context":         cmdContext,
+	"children":        cmdChildren,
+	"parent":          cmdParent,
+	"path":            cmdPath,
+	"components":      cmdComponents,
+	"assets":          cmdAssets,
+	"fonts":           cmdFonts,
+	"query":           cmdQuery,
+	"index":           cmdIndex,
+	"extract-assets":  cmdExtractAssets,
+	"mcp":             cmdMCP,
+	"mcp-config":      cmdMCPConfig,
+	"serve":           cmdServe,
+	"stop":            cmdStop,
+	"version":         cmdVersion,
+}
+
+// figless commands do not operate on a fig file.
+var figless = map[string]bool{"serve": true, "stop": true, "version": true}
 
 func main() {
-	if len(os.Args) < 2 {
+	args := stripGlobals(os.Args[1:])
+	if len(args) == 0 {
+		hint()
 		usage()
-		os.Exit(2)
+		return
 	}
-	args := stripJSON(os.Args[2:])
-	var err error
-	switch os.Args[1] {
-	case "inspect":
-		err = cmdInspect(args)
-	case "search":
-		err = cmdSearch(args)
-	case "node":
-		err = cmdNode(args)
-	case "context":
-		err = cmdContext(args)
-	case "children":
-		err = cmdChildren(args)
-	case "parent":
-		err = cmdParent(args)
-	case "path":
-		err = cmdPath(args)
-	case "components":
-		err = cmdComponents(args)
-	case "assets":
-		err = cmdAssets(args)
-	case "fonts":
-		err = cmdFonts(args)
-	case "query":
-		err = cmdQuery(args)
-	case "extract-assets":
-		err = cmdExtractAssets(args)
-	case "mcp":
-		err = cmdMCP(args)
-	case "help", "-h", "--help":
+	if isHelp(args[0]) {
 		usage()
-	default:
-		err = fmt.Errorf("unknown command %q", os.Args[1])
+		return
 	}
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "dali:", err)
-		os.Exit(1)
+	if args[0] == "-v" || args[0] == "--version" {
+		if err := cmdVersion(nil); err != nil {
+			fail(err)
+		}
+		return
+	}
+
+	var name string
+	var rest []string
+	if _, ok := commands[args[0]]; ok {
+		name = args[0]
+		rest = args[1:]
+	} else {
+		figFile = args[0]
+		if len(args) < 2 {
+			fmt.Fprintf(os.Stderr, "dali: missing command after %q\n\n", args[0])
+			usage()
+			os.Exit(2)
+		}
+		name = args[1]
+		rest = args[2:]
+	}
+	if isHelp(name) {
+		usage()
+		return
+	}
+	if _, ok := commands[name]; !ok {
+		fail(fmt.Errorf("unknown command %q", name))
+	}
+	if !figless[name] {
+		if figFile == "" {
+			figFile = embed.FigDir()
+		}
+		info, err := os.Stat(figFile)
+		if err != nil {
+			if name == "mcp" {
+				figFile = ""
+			} else {
+				fail(fmt.Errorf("cannot read %q: %w", figFile, err))
+			}
+		} else if info.IsDir() {
+			found, err := detectFig(figFile)
+			if err != nil {
+				// mcp can run without a default fig: tools take a "file" argument.
+				if name == "mcp" {
+					figFile = ""
+				} else {
+					fail(err)
+				}
+			} else {
+				figFile = found
+			}
+		}
+	}
+	if err := commands[name](rest); err != nil {
+		fail(err)
 	}
 }
 
-func stripJSON(args []string) []string {
+func fail(err error) {
+	fmt.Fprintf(os.Stderr, "%s %v\n", output.Error("dali:"), err)
+	os.Exit(1)
+}
+
+// hint greets a new user with the fig it found in the current directory.
+func hint() {
+	fmt.Fprintf(os.Stderr, "%s %s\n", output.Success("Found"), output.Bold(embed.FigDir()))
+	fmt.Fprintf(os.Stderr, "  %s\n", output.Dim("dali inspect"))
+	fmt.Fprintf(os.Stderr, "  %s\n", output.Dim(`dali search "checkout"`))
+	fmt.Fprintf(os.Stderr, "  %s\n", output.Dim(`dali semantic-search "payment screen"`))
+	fmt.Fprintf(os.Stderr, "  %s\n\n", output.Dim("dali mcp-config"))
+}
+
+func isHelp(arg string) bool {
+	return arg == "help" || arg == "-h" || arg == "--help"
+}
+
+func detectFig(dir string) (string, error) {
+	if dir == "" {
+		dir = embed.FigDir()
+	}
+	var matches []string
+	for _, pattern := range []string{"*.fig", "*.deck"} {
+		found, err := filepath.Glob(filepath.Join(dir, pattern))
+		if err == nil {
+			matches = append(matches, found...)
+		}
+	}
+	where := dir
+	if dir == "." {
+		where = "the current directory"
+	}
+	switch len(matches) {
+	case 0:
+		return "", fmt.Errorf("no .fig file in %s; pass one explicitly: dali <file.fig> <command>", where)
+	case 1:
+		return matches[0], nil
+	default:
+		return "", fmt.Errorf("multiple fig files found in %s (%s); pass one explicitly", where, strings.Join(matches, ", "))
+	}
+}
+
+func stripGlobals(args []string) []string {
 	out := args[:0:0]
 	for _, a := range args {
-		if a == "--json" {
+		switch a {
+		case "--json":
 			jsonOut = true
-			continue
+		case "--no-color":
+			output.SetEnabled(false)
+		case "--quiet", "-q":
+			output.SetQuiet(true)
+		default:
+			out = append(out, a)
 		}
-		out = append(out, a)
 	}
 	return out
 }
@@ -68,21 +174,57 @@ func usage() {
 	fmt.Fprint(os.Stderr, `dali - Figma .fig knowledge engine
 
 Usage:
-  dali inspect <file.fig>
-  dali search <file.fig> <query>
-  dali node <file.fig> <id>
-  dali context <file.fig> <id>
-  dali children <file.fig> <id>
-  dali parent <file.fig> <id>
-  dali path <file.fig> <id>
-  dali components <file.fig>
-  dali assets <file.fig>
-  dali fonts <file.fig>
-  dali query <file.fig> <expression>
-  dali extract-assets <file.fig>
-  dali mcp <file.fig>
+  dali [<file.fig>] <command> [args]
+
+The file (or its directory) is optional: if omitted, the single .fig in the
+current directory is used.
+
+Commands:
+  inspect                     Document counts
+  search <query>              Full-text search (FTS5)
+  semantic-search <query>     Vector search [--limit N] [--type T] [--page P] [--hybrid]
+  node <id>                   Show one node
+  context <id>                Path, parent, children, component, styles, assets
+  children <id>               Direct children
+  parent <id>                 Parent node
+  path <id>                   Root-to-node path
+  components                  List components
+  assets                      List image assets
+  fonts                       List fonts in use
+  query <expression>          Structural query (type=, name~, descendants())
+  index [--embeddings]        Build the structural index; --embeddings adds the vector index
+                              (--force rebuilds even if up to date)
+  extract-assets              Write images to <base>.assets/images
+  mcp                         Run the MCP server over stdio
+  mcp-config                  Print MCP config (--opencode, --vscode; default mcpServers)
+  serve                       Keep the embedding server warm (reused later)
+  stop                        Stop the managed embedding server
 
 Flags:
-  --json    output JSON
+  --json       output JSON
+  --yes        allow downloads without prompting
+  --no-color   disable colors
+  --quiet, -q  hide progress and status
+
+Environment:
+  DALI_EMBED_PROVIDER  auto | ollama | llama | remote  (default auto)
+  DALI_LLAMA_URL       use an existing llama-server
+  DALI_LLAMA_MODEL     managed model repo (default ggml-org/embeddinggemma-300M-GGUF)
+  DALI_LLAMA_TAG       pinned llama.cpp release tag
+  DALI_LLAMA_PARALLEL  managed server slots (default: from CPU count)
+  DALI_LLAMA_THREADS   managed server threads (default: from CPU count)
+  DALI_EMBED_CONCURRENCY  parallel embedding requests (default: from CPU count)
+  DALI_EMBED_BATCH     texts per embedding request (default 64)
+  DALI_LLAMA_KEEP      set to 0 to stop the server after each command
+  DALI_CACHE_DIR       download cache directory
+  DALI_EMBED_URL       Ollama endpoint (default http://localhost:11434)
+  DALI_EMBED_MODEL     Ollama model (default bge-m3)
+  DALI_EMBED_YES       allow downloads without prompting
+
+Examples:
+  dali design.fig inspect
+  dali design.fig semantic-search "payment screen" --limit 10
+  dali inspect                 # uses ./design.fig
+  dali . index                 # indexes the .fig in this directory
 `)
 }
