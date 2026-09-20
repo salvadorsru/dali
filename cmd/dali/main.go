@@ -31,6 +31,7 @@ var commands = map[string]func([]string) error{
 	"variables":       cmdVariables,
 	"styles":          cmdStyles,
 	"query":           cmdQuery,
+	"xpath":           cmdXPath,
 	"index":           cmdIndex,
 	"extract-assets":  cmdExtractAssets,
 	"mcp":             cmdMCP,
@@ -198,8 +199,8 @@ Commands:
   fonts                       List fonts in use
   variables                   List design tokens with values per mode
   styles                      List style definitions (name, kind, value, uses)
-  query <expression>          Structural query (type=, name~, descendants())
-  index [--embeddings]        Build the structural index; --embeddings adds the vector index
+  query <expression>          Structural query DSL (type=, name~, descendants())
+  xpath <expression>          XPath subset over the tree (/ // * @name= @name~ contains()) [--limit N]
                               (--force rebuilds even if up to date)
   extract-assets              Write images to <base>.assets/images
   mcp                         Run the MCP server over stdio

@@ -13,6 +13,9 @@ func (s *Service) Query(expr string) ([]*model.Node, error) {
 	if expr == "" {
 		return nil, nil
 	}
+	if strings.HasPrefix(expr, "/") {
+		return nil, fmt.Errorf("expressions starting with / are XPath; use Service.XPath (CLI: dali xpath)")
+	}
 	for _, rel := range []string{"descendants", "ancestors", "children", "parent"} {
 		if strings.HasPrefix(expr, rel+"(") {
 			return s.relation(rel, inner(expr, rel))

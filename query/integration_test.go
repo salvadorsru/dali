@@ -99,6 +99,85 @@ func TestQueryExpressions(t *testing.T) {
 	}
 }
 
+func TestXPathIntegration(t *testing.T) {
+	if _, err := os.Stat(sample); err != nil {
+		t.Skip("sample fig not present")
+	}
+	svc, err := Open(sample)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer svc.Close()
+
+	nodes, err := svc.XPath("//TEXT")
+	if err != nil || len(nodes) == 0 {
+		t.Fatalf("//TEXT: %d, err %v", len(nodes), err)
+	}
+	for _, n := range nodes {
+		if n.Type != "TEXT" {
+			t.Fatalf("//TEXT matched %q", n.Type)
+		}
+	}
+
+	nodes, err = svc.XPath(`//FRAME[@name='Hero']`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range nodes {
+		if n.Type != "FRAME" || n.Name != "Hero" {
+			t.Fatalf("bad match: %+v", n)
+		}
+	}
+
+	if _, err := svc.XPath(`//FRAME[@id='1:2']`); err == nil {
+		t.Fatal("unsupported predicate should fail")
+	}
+}
+
+func TestSuggestIntegration(t *testing.T) {
+	if _, err := os.Stat(sample); err != nil {
+		t.Skip("sample fig not present")
+	}
+	svc, err := Open(sample)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer svc.Close()
+
+	suggests, err := svc.SuggestNames("zznomatch Gombotn", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = suggests
+	comps, err := svc.Components()
+	if err != nil || len(comps) == 0 {
+		t.Skip("no components to base the suggestion test on")
+	}
+	tokens := splitTokens(comps[0].Name)
+	if len(tokens) == 0 {
+		t.Skip("component name has no tokens")
+	}
+	suggests, err = svc.SuggestNames("zznomatch "+tokens[0], 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, sg := range suggests {
+		if sg.Name == comps[0].Name {
+			found = true
+			break
+		}
+	}
+	if len(suggests) == 0 || !found {
+		t.Fatalf("expected %q among suggestions, got %+v", comps[0].Name, suggests)
+	}
+	for _, sg := range suggests {
+		if sg.Score <= 0 || sg.Name == "" {
+			t.Fatalf("bad suggest %+v", sg)
+		}
+	}
+}
+
 func TestTokenAggregations(t *testing.T) {
 	if _, err := os.Stat(sample); err != nil {
 		t.Skip("sample fig not present")

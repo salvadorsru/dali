@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/salvadorsru/dali/index"
 	"github.com/salvadorsru/dali/model"
@@ -18,6 +19,15 @@ type Service struct {
 	sql     *sql.DB
 	rebuilt bool
 	ranker  Ranker
+
+	// snapshot caches the materialized document tree used by XPath. It is
+	// built lazily on first use and valid for the Service lifetime: the index
+	// is only rebuilt at Open, never while a Service is alive.
+	snapOnce     sync.Once
+	snapPages    []*model.Node
+	snapByID     map[string]*model.Node
+	snapChildren map[string][]*model.Node
+	snapErr      error
 }
 
 func Open(figPath string) (*Service, error) {

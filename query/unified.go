@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/salvadorsru/dali/embed"
+	"github.com/salvadorsru/dali/model"
 )
 
 // Ranker turns one or more candidate result sets into a single ranked list.
@@ -155,7 +157,13 @@ func isStructuralExpr(q string) bool {
 func (s *Service) queryStructural(ctx context.Context, opts UnifiedOptions) ([]Result, error) {
 	if opts.Type == "" && opts.PageID == "" {
 		if query := opts.Query; query != "" && (opts.Structural || isStructuralExpr(query)) {
-			nodes, err := s.Query(query)
+			var nodes []*model.Node
+			var err error
+			if strings.HasPrefix(strings.TrimSpace(query), "/") {
+				nodes, err = s.XPath(query)
+			} else {
+				nodes, err = s.Query(query)
+			}
 			if err != nil {
 				return nil, err
 			}

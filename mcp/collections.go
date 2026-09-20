@@ -2,16 +2,20 @@ package mcp
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/salvadorsru/dali/model"
+	"github.com/salvadorsru/dali/query"
 )
 
 type componentsOutput struct {
 	Components []NodeRef `json:"components"`
+	// Suggestions lists node names close to the filter when nothing matched.
+	Suggestions []string `json:"suggestions,omitempty"`
 }
 
 func (h *handlers) findComponents(ctx context.Context, req *mcp.CallToolRequest, in filterInput) (*mcp.CallToolResult, componentsOutput, error) {
@@ -25,6 +29,9 @@ func (h *handlers) findComponents(ctx context.Context, req *mcp.CallToolRequest,
 	}
 	if in.Name != "" {
 		nodes = filterByName(nodes, in.Name)
+		if len(nodes) == 0 {
+			return nil, componentsOutput{Suggestions: suggest(svc, in.Name)}, nil
+		}
 	}
 	return nil, componentsOutput{Components: toRefs(nodes)}, nil
 }
@@ -40,8 +47,26 @@ func (h *handlers) findInstances(ctx context.Context, req *mcp.CallToolRequest, 
 	}
 	if in.Name != "" {
 		nodes = filterByName(nodes, in.Name)
+		if len(nodes) == 0 {
+			return nil, componentsOutput{Suggestions: suggest(svc, in.Name)}, nil
+		}
 	}
 	return nil, componentsOutput{Components: toRefs(nodes)}, nil
+}
+
+func suggest(svc *query.Service, name string) []string {
+	if name == "" {
+		return nil
+	}
+	got, err := svc.SuggestNames(name, 8)
+	if err != nil {
+		return nil
+	}
+	out := make([]string, 0, len(got))
+	for _, s := range got {
+		out = append(out, s.Name)
+	}
+	return out
 }
 
 type assetsOutput struct {
@@ -247,7 +272,29 @@ func (h *handlers) queryFigma(ctx context.Context, req *mcp.CallToolRequest, in 
 	if err != nil {
 		return nil, componentsOutput{}, err
 	}
+	if strings.HasPrefix(strings.TrimSpace(in.Query), "/") {
+		return nil, componentsOutput{}, fmt.Errorf("%q looks like XPath; use xpath_figma", in.Query)
+	}
 	nodes, err := svc.Query(in.Query)
+	if err != nil {
+		return nil, componentsOutput{}, err
+	}
+	limit := in.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	if len(nodes) > limit {
+		nodes = nodes[:limit]
+	}
+	return nil, componentsOutput{Components: toRefs(nodes)}, nil
+}
+
+func (h *handlers) xpathFigma(ctx context.Context, req *mcp.CallToolRequest, in queryInput) (*mcp.CallToolResult, componentsOutput, error) {
+	svc, err := h.service(in.File, newNotifier(ctx, req))
+	if err != nil {
+		return nil, componentsOutput{}, err
+	}
+	nodes, err := svc.XPath(in.Query)
 	if err != nil {
 		return nil, componentsOutput{}, err
 	}

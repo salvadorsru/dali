@@ -331,6 +331,9 @@ func cmdQuery(args []string) error {
 	if err != nil {
 		return err
 	}
+	if strings.HasPrefix(strings.TrimSpace(expr), "/") {
+		return fmt.Errorf("%q is an XPath expression; use `dali xpath`", expr)
+	}
 	svc, err := open(figFile)
 	if err != nil {
 		return err
@@ -339,7 +342,52 @@ func cmdQuery(args []string) error {
 
 	nodes, err := svc.Query(expr)
 	if err != nil {
+		if s, serr := svc.SuggestNames(expr, 8); serr == nil && len(s) > 0 {
+			names := make([]string, 0, len(s))
+			for _, x := range s {
+				names = append(names, output.Dim(x.Name))
+			}
+			fmt.Fprintf(os.Stderr, "%s no match for %q, did you mean: %s\n",
+				output.Warn("dali:"), expr, strings.Join(names, ", "))
+			return nil
+		}
 		return err
+	}
+	if len(nodes) == 0 {
+		if s, serr := svc.SuggestNames(expr, 8); serr == nil && len(s) > 0 {
+			names := make([]string, 0, len(s))
+			for _, x := range s {
+				names = append(names, output.Dim(x.Name))
+			}
+			fmt.Fprintf(os.Stderr, "%s no matches for %q, did you mean: %s\n",
+				output.Warn("dali:"), expr, strings.Join(names, ", "))
+		}
+	}
+	return printNodes(nodes)
+}
+
+func cmdXPath(args []string) error {
+	expr, err := arg(args, 0, "expression")
+	if err != nil {
+		return err
+	}
+	fs := flag.NewFlagSet("xpath", flag.ContinueOnError)
+	limit := fs.Int("limit", 0, "max results")
+	if err := fs.Parse(args[1:]); err != nil {
+		return err
+	}
+	svc, err := open(figFile)
+	if err != nil {
+		return err
+	}
+	defer svc.Close()
+
+	nodes, err := svc.XPath(expr)
+	if err != nil {
+		return err
+	}
+	if *limit > 0 && len(nodes) > *limit {
+		nodes = nodes[:*limit]
 	}
 	return printNodes(nodes)
 }
