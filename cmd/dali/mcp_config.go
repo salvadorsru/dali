@@ -1,63 +1,267 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/salvadorsru/dali/embed"
 	"github.com/salvadorsru/dali/output"
 )
 
-// cmdMCPConfig prints the MCP server configuration for the current fig and
-// binary, ready to paste into an AI editor.
+type configTarget struct {
+	name    string
+	path    string
+	key     string
+	global  bool
+	payload func(exe, fig string, env map[string]string) map[string]any
+}
+
+var configTargets = map[string]configTarget{
+	"opencode": {
+		name: "OpenCode",
+		path: "opencode.json",
+		key:  "mcp",
+		payload: func(exe, fig string, env map[string]string) map[string]any {
+			return map[string]any{
+				"mcp": map[string]any{
+					"dali": map[string]any{
+						"type":        "local",
+						"command":     []string{exe, fig, "mcp"},
+						"environment": env,
+						"enabled":     true,
+						"timeout":     120000,
+					},
+				},
+			}
+		},
+	},
+	"cursor": {
+		name: "Cursor",
+		path: filepath.Join(".cursor", "mcp.json"),
+		key:  "mcpServers",
+		payload: func(exe, fig string, env map[string]string) map[string]any {
+			return map[string]any{
+				"mcpServers": map[string]any{
+					"dali": map[string]any{
+						"command": exe,
+						"args":    []string{fig, "mcp"},
+						"env":     env,
+					},
+				},
+			}
+		},
+	},
+	"claude": {
+		name: "Claude Code",
+		path: ".mcp.json",
+		key:  "mcpServers",
+		payload: func(exe, fig string, env map[string]string) map[string]any {
+			return map[string]any{
+				"mcpServers": map[string]any{
+					"dali": map[string]any{
+						"type":    "stdio",
+						"command": exe,
+						"args":    []string{fig, "mcp"},
+						"env":     env,
+					},
+				},
+			}
+		},
+	},
+	"vscode": {
+		name: "VS Code",
+		path: filepath.Join(".vscode", "mcp.json"),
+		key:  "servers",
+		payload: func(exe, fig string, env map[string]string) map[string]any {
+			return map[string]any{
+				"servers": map[string]any{
+					"dali": map[string]any{
+						"type":    "stdio",
+						"command": exe,
+						"args":    []string{fig, "mcp"},
+						"env":     env,
+					},
+				},
+			}
+		},
+	},
+	"cline": {
+		name: "Cline",
+		path: filepath.Join(".cline", "mcp.json"),
+		key:  "mcpServers",
+		payload: func(exe, fig string, env map[string]string) map[string]any {
+			return map[string]any{
+				"mcpServers": map[string]any{
+					"dali": map[string]any{
+						"command":     exe,
+						"args":        []string{fig, "mcp"},
+						"env":         env,
+						"disabled":    false,
+						"alwaysAllow": []string{},
+					},
+				},
+			}
+		},
+	},
+	"roo": {
+		name: "Roo Code",
+		path: filepath.Join(".roo", "mcp.json"),
+		key:  "mcpServers",
+		payload: func(exe, fig string, env map[string]string) map[string]any {
+			return map[string]any{
+				"mcpServers": map[string]any{
+					"dali": map[string]any{
+						"command":     exe,
+						"args":        []string{fig, "mcp"},
+						"env":         env,
+						"disabled":    false,
+						"alwaysAllow": []string{},
+					},
+				},
+			}
+		},
+	},
+	"windsurf": {
+		name:   "Windsurf",
+		path:   "mcp_config.json",
+		key:    "mcpServers",
+		global: true,
+		payload: func(exe, fig string, env map[string]string) map[string]any {
+			return map[string]any{
+				"mcpServers": map[string]any{
+					"dali": map[string]any{
+						"command": exe,
+						"args":    []string{fig, "mcp"},
+						"env":     env,
+					},
+				},
+			}
+		},
+	},
+}
+
+// order lists the editor targets in a deterministic output order.
+var order = []string{"opencode", "cursor", "claude", "vscode", "cline", "roo", "windsurf"}
+
+// defaults lists the targets written when no editor is selected: every
+// project-level config, but not the global Windsurf file.
+var defaults = []string{"opencode", "cursor", "claude", "vscode", "cline", "roo"}
+
+// cmdMCPConfig writes the MCP server configuration for a design file so an AI
+// editor can load it. Configs are placed in the current directory, each editor
+// in its own config file (Windsurf is global-only); --print sends them to
+// stdout instead. Existing configs are merged, never replaced.
 func cmdMCPConfig(args []string) error {
 	fs := flag.NewFlagSet("mcp-config", flag.ContinueOnError)
-	opencode := fs.Bool("opencode", false, "emit OpenCode (opencode.json) config")
-	vscode := fs.Bool("vscode", false, "emit VS Code (.vscode/mcp.json) config")
-	fs.Bool("claude", false, "emit Claude/Cursor mcpServers config (default)")
+	all := fs.Bool("all", false, "write configs for every supported editor, including Windsurf")
+	selected := map[string]*bool{}
+	for _, name := range order {
+		selected[name] = fs.Bool(name, false, "write "+configTargets[name].name+" config")
+	}
+	src := fs.String("src", "", "path to the design file (.fig); defaults to the fig in the current directory")
+	dir := fs.String("dir", "", "directory to write configs to; defaults to the current directory")
+	print := fs.Bool("print", false, "print configs to stdout instead of writing files")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
+	fig := *src
+	if fig == "" {
+		fig = figFile
+	}
+	if fig == "" {
+		found, err := detectFig(embed.FigDir())
+		if err != nil {
+			return errors.New("no design file: pass --src <file.fig>")
+		}
+		fig = found
+	}
 	exe := absPath(selfPath())
-	fig := absPath(figFile)
+	fig = absPath(fig)
+	base := absPath(*dir)
+	if base == "" {
+		base, _ = os.Getwd()
+	}
 	env := map[string]string{"DALI_EMBED_YES": "1"}
 
-	switch {
-	case *opencode:
-		return output.JSON(os.Stdout, map[string]any{
-			"mcp": map[string]any{
-				"dali": map[string]any{
-					"type":        "local",
-					"command":     []string{exe, fig, "mcp"},
-					"environment": env,
-					"enabled":     true,
-					"timeout":     120000,
-				},
-			},
-		})
-	case *vscode:
-		return output.JSON(os.Stdout, map[string]any{
-			"servers": map[string]any{
-				"dali": map[string]any{
-					"type":    "stdio",
-					"command": exe,
-					"args":    []string{fig, "mcp"},
-					"env":     env,
-				},
-			},
-		})
-	default:
-		return output.JSON(os.Stdout, map[string]any{
-			"mcpServers": map[string]any{
-				"dali": map[string]any{
-					"command": exe,
-					"args":    []string{fig, "mcp"},
-					"env":     env,
-				},
-			},
-		})
+	var names []string
+	if *all {
+		names = order
+	} else {
+		for _, name := range order {
+			if *selected[name] {
+				names = append(names, name)
+			}
+		}
+		if len(names) == 0 {
+			names = defaults
+		}
 	}
+
+	for _, name := range names {
+		t := configTargets[name]
+		payload := t.payload(exe, fig, env)
+		if *print {
+			if err := output.JSON(os.Stdout, payload); err != nil {
+				return err
+			}
+			continue
+		}
+		path := filepath.Join(base, t.path)
+		if t.global {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return err
+			}
+			path = filepath.Join(home, ".codeium", "windsurf", t.path)
+		}
+		if err := writeConfig(path, t.key, payload); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeConfig writes payload to path, merging it under the target's root key
+// when the file already holds other servers or settings.
+func writeConfig(path string, root string, payload map[string]any) error {
+	if dir := filepath.Dir(path); dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
+	doc := payload
+	if data, err := os.ReadFile(path); err == nil {
+		var existing map[string]any
+		if err := json.Unmarshal(data, &existing); err == nil && existing != nil {
+			doc = existing
+			entries, _ := payload[root].(map[string]any)
+			if entries != nil {
+				base, _ := doc[root].(map[string]any)
+				if base == nil {
+					base = map[string]any{}
+					doc[root] = base
+				}
+				for k, v := range entries {
+					base[k] = v
+				}
+			}
+		}
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if err := output.JSON(f, doc); err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "%s %s\n", output.Success("wrote"), output.Bold(path))
+	return nil
 }
 
 func selfPath() string {

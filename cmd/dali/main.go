@@ -38,7 +38,7 @@ var commands = map[string]func([]string) error{
 }
 
 // figless commands do not operate on a fig file.
-var figless = map[string]bool{"serve": true, "stop": true, "version": true}
+var figless = map[string]bool{"serve": true, "stop": true, "version": true, "mcp-config": true}
 
 func main() {
 	args := stripGlobals(os.Args[1:])
@@ -196,7 +196,12 @@ Commands:
                               (--force rebuilds even if up to date)
   extract-assets              Write images to <base>.assets/images
   mcp                         Run the MCP server over stdio
-  mcp-config                  Print MCP config (--opencode, --vscode; default mcpServers)
+  mcp-config [--src FILE]     Write MCP config per editor (--opencode, --cursor,
+                              --claude, --vscode, --cline, --roo, --windsurf;
+                              --all includes Windsurf's global file, default all
+                              but --windsurf, --print to stdout) into the current
+                              directory (--dir to override), merged with any
+                              existing config
   serve                       Keep the embedding server warm (reused later)
   stop                        Stop the managed embedding server
 
