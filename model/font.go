@@ -3,9 +3,9 @@ package model
 import "sort"
 
 type Font struct {
-	Family string
-	Style  string
-	Count  int
+	Family string `json:"family"`
+	Style  string `json:"style"`
+	Count  int    `json:"count"`
 }
 
 func (d *Document) Fonts() []Font {

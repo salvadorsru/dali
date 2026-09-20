@@ -91,6 +91,95 @@ func TestTools(t *testing.T) {
 	}
 }
 
+// TestNewTools exercises the additive tools that need no embedder.
+func TestNewTools(t *testing.T) {
+	if _, err := os.Stat(sample); err != nil {
+		t.Skip("sample fig not present")
+	}
+
+	ctx := context.Background()
+	ct, st := mcp.NewInMemoryTransports()
+	srv, h := newServer(sample)
+	defer h.close()
+	go srv.Run(ctx, st)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+	session, err := client.Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+
+	call := func(name string, args map[string]any) string {
+		res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if res.IsError || len(res.Content) == 0 {
+			t.Fatalf("%s returned no content: %+v body=%q", name, res, textOf(res))
+		}
+		return textOf(res)
+	}
+
+	body := call("get_stats", nil)
+	var stats statsOutput
+	if err := json.Unmarshal([]byte(body), &stats); err != nil {
+		t.Fatalf("get_stats parse: %v", err)
+	}
+	if stats.Document == "" || stats.Nodes == 0 || stats.Pages == 0 {
+		t.Fatalf("get_stats = %+v", stats)
+	}
+
+	body = call("list_pages", nil)
+	var pages pagesOutput
+	if err := json.Unmarshal([]byte(body), &pages); err != nil {
+		t.Fatalf("list_pages parse: %v", err)
+	}
+	if len(pages.Pages) == 0 || pages.Pages[0].ID == "" {
+		t.Fatalf("list_pages = %+v", pages)
+	}
+
+	body = call("get_fonts", nil)
+	var fonts fontsOutput
+	if err := json.Unmarshal([]byte(body), &fonts); err != nil {
+		t.Fatalf("get_fonts parse: %v", err)
+	}
+	if len(fonts.Fonts) == 0 {
+		t.Fatalf("get_fonts empty")
+	}
+
+	body = call("find_instances", nil)
+	var inst componentsOutput
+	if err := json.Unmarshal([]byte(body), &inst); err != nil {
+		t.Fatalf("find_instances parse: %v", err)
+	}
+
+	body = call("query_figma", map[string]any{"query": `type="FRAME"`, "limit": 5})
+	var q componentsOutput
+	if err := json.Unmarshal([]byte(body), &q); err != nil {
+		t.Fatalf("query_figma parse: %v", err)
+	}
+	if len(q.Components) == 0 {
+		t.Fatalf("query_figma empty")
+	}
+
+	body = call("find_assets", nil)
+	var assets assetsOutput
+	if err := json.Unmarshal([]byte(body), &assets); err != nil {
+		t.Fatalf("find_assets parse: %v", err)
+	}
+	if len(assets.Assets) > 0 {
+		body = call("get_image", map[string]any{"hash": assets.Assets[0].Hash})
+		var img imageOutput
+		if err := json.Unmarshal([]byte(body), &img); err != nil {
+			t.Fatalf("get_image parse: %v", err)
+		}
+		if img.Data == "" || img.MIME == "" {
+			t.Fatalf("get_image = %+v", img)
+		}
+	}
+}
+
 // TestIndexNotification verifies the server reports structural indexing via
 // progress notifications when the client supplies a progress token.
 func TestIndexNotification(t *testing.T) {
