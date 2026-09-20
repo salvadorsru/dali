@@ -7,13 +7,14 @@ import (
 )
 
 type Result struct {
-	ID    string
-	Type  string
-	Name  string
-	Text  string
-	Page  string
-	Path  string
-	Score float64
+	ID       string
+	Type     string
+	Name     string
+	Text     string
+	Page     string
+	Path     string
+	Score    float64
+	Distance float64
 }
 
 func (s *Service) Search(query string, limit int) ([]Result, error) {
