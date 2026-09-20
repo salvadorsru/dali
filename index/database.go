@@ -85,6 +85,10 @@ func (db *DB) migrate() error {
 		`CREATE INDEX IF NOT EXISTS nodes_name_idx ON nodes(name)`,
 		`CREATE INDEX IF NOT EXISTS nodes_parent_idx ON nodes(parent_id)`,
 		`CREATE INDEX IF NOT EXISTS nodes_page_idx ON nodes(page_id)`,
+		`CREATE TABLE IF NOT EXISTS node_fingerprints (
+			node_id TEXT PRIMARY KEY,
+			fingerprint TEXT
+		)`,
 		`CREATE TABLE IF NOT EXISTS node_assets (
 			node_id TEXT,
 			hash TEXT,
