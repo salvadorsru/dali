@@ -91,7 +91,11 @@ progress), `--no-color`.
 | `node <id>` / `context <id>` | Show one node / its surroundings. |
 | `children <id>` / `parent <id>` / `path <id>` | Tree navigation. |
 | `components` / `assets` / `fonts` | List components, image assets, fonts. |
-| `query <expr>` | Structural query (see grammar below). |
+| `query <expr>` | Structural query DSL (see grammar below). |
+| `xpath <expr>` | XPath subset over the tree (`/`, `//`, `*`, `@name=`, `@name~`, `contains()`). `--limit`. |
+| `lint [--preset P]` | Design + accessibility checks (`recommended`, `strict`, `accessibility`). |
+| `analyze <kind>` | Geometry stats: `spacing`, `clusters`, `overlaps`. |
+| `export <svg\|html>` | Render pages or a node subtree; `--page`, `--root`, `--output`. |
 | `index [--embeddings] [--force]` | Build the structural index; `--embeddings` adds the vector index. |
 | `extract-assets` | Write images to `<base>.assets/images`. |
 | `mcp` | Run the MCP server over stdio. |
@@ -105,21 +109,46 @@ without prompting.
 
 ### Structural queries
 
+`query` uses a small DSL:
+
 | Expression | Meaning |
 | --- | --- |
 | `type=TEXT` | Exact node type (case-insensitive). |
-| `name="Checkout"` | Exact node name. |
+| `name="Component"` | Exact node name. |
 | `name~"button"` | Name substring (SQL `LIKE`). |
-| `descendants("Checkout")` | Every descendant of the node named `Checkout`. |
-| `ancestors("Checkout")` | Every ancestor of the node named `Checkout`. |
-| `children("Checkout")` | Direct children of the node named `Checkout`. |
-| `parent("Checkout")` | Parent of the node named `Checkout`. |
+| `descendants("Component")` | Every descendant of the node named `Component`. |
+| `ancestors("Component")` | Every ancestor of the node named `Component`. |
+| `children("Component")` | Direct children of the node named `Component`. |
+| `parent("Component")` | Parent of the node named `Component`. |
 
 ```bash
 dali design.fig query 'type=TEXT'
 dali design.fig query 'name~"button"'
-dali design.fig query 'descendants("Checkout")'
+dali design.fig query 'descendants("Component")'
 ```
+
+`xpath` evaluates a subset of XPath over the document tree, with type steps in
+upper case (`/DOCUMENT/CANVAS`, `//FRAME`) and name predicates:
+
+| Expression | Meaning |
+| --- | --- |
+| `/` | Child step. |
+| `//` | Descendant step. |
+| `*` | Any node type. |
+| `@name="x"` | Exact name. |
+| `@name~"x"` | Name substring. |
+| `contains(@name,"x")` | Name substring. |
+
+```bash
+dali design.fig xpath '//FRAME[@name~"card"]'
+dali design.fig xpath '/DOCUMENT/CANVAS/FRAME'
+dali design.fig xpath '//*[contains(@name,"button")]'
+```
+
+XPath is the only read path evaluated in memory over a cached tree snapshot
+(the DSL and the rest of `query` read SQL). It deliberately trades the
+SQL pushdown for tree axes the DSL does not expose. A DSL query with no matches
+prints name suggestions on stderr (`did you mean ...`).
 
 ### Output
 
@@ -130,6 +159,43 @@ piped safely:
 ```bash
 dali design.fig search "checkout" --json | jq '.[0].path'
 ```
+
+## Quality & export
+
+`lint`, `analyze` and `export` always parse the `.fig` directly (they never rely
+on index staleness).
+
+`lint` reports design-quality and accessibility issues. Presets:
+`recommended` (default), `strict` (promotes warnings to errors), and
+`accessibility` (accessibility rules only, all reported as errors):
+
+```text
+RULE             SEVERITY  NODE        NAME        PATH               DETAIL
+text-contrast    warn      0:3         Body        Doc/Page/Card/Body contrast 1.00:1 ...
+generic-name     warn      0:4         Frame 12    ...                auto-generated name
+touch-target     warn      ...         ...         ...                min side 10px below 44px
+unused-component warn      0:8         IconBtn     ...                component has no instances
+```
+
+`analyze` inspects geometry:
+
+```bash
+dali design.fig analyze spacing    # most-used layout gaps
+dali design.fig analyze clusters   # repeated node sizes
+dali design.fig analyze overlaps   # intersecting siblings (--min-ratio 0.1)
+```
+
+`export` renders the document (one column per page), or a single page/subtree,
+to a standalone SVG or HTML file:
+
+```bash
+dali design.fig export html --output design.html
+dali design.fig export svg  --page 0:2
+dali design.fig export svg  --root 654:11617 --output card.svg
+```
+
+Vector geometry, fills, corner radii, clipping, text and embedded images are
+included; raster formats are out of scope.
 
 ## Semantic search
 
@@ -181,11 +247,11 @@ fig passed to `dali mcp` and then to the single `.fig` in the working directory.
 | `search_figma` | Full-text search, with optional context. |
 | `semantic_search_figma` | Vector search; auto-indexes missing embeddings. |
 | `hybrid_search_figma` | Fusion of full-text, semantic and structural search (RRF). |
-| `query_figma` | Structural expressions, e.g. `type=FRAME`, `children("Header")`. |
+| `query_figma` | Structural expressions or XPath, e.g. `type=FRAME`, `children("Header")`, `//FRAME[@name~"card"]`. |
 | `get_node` / `get_context` / `get_children` | Node inspection. |
 | `get_descendants` | Whole subtree with depth, styles and images. |
 | `get_parent` | Parent node. |
-| `find_components` / `find_instances` | List components / instances, optionally by name. |
+| `find_components` / `find_instances` | List components / instances, optionally by name (empty results suggest nearby names). |
 | `find_assets` / `get_image` | List assets / fetch one as base64. |
 | `get_fonts` / `get_styles` | List fonts / styles, optionally filtered by name or kind. |
 | `get_tokens` | Aggregate tokens: colour palette, variables, fonts, text classes, layouts. |
@@ -194,6 +260,9 @@ fig passed to `dali mcp` and then to the single `.fig` in the working directory.
 | `variables` | List design tokens with values per mode. |
 | `get_stats` / `list_pages` | Document summary / pages in document order. |
 | `list_figs` | List `.fig`/`.deck` files in the current directory. |
+| `lint_figma` | Design + accessibility checks (presets: `recommended`, `strict`, `accessibility`). |
+| `analyze_figma` | Geometry analysis: `spacing`, `clusters`, `overlaps`. |
+| `export_figma` | Render document, page or subtree to SVG/HTML next to the `.fig`. |
 
 ### Configuration
 
