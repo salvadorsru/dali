@@ -36,6 +36,7 @@ var commands = map[string]func([]string) error{
 	"extract-assets":  cmdExtractAssets,
 	"lint":            cmdLint,
 	"analyze":         cmdAnalyze,
+	"export":          cmdExport,
 	"mcp":             cmdMCP,
 	"mcp-config":      cmdMCPConfig,
 	"serve":           cmdServe,
@@ -206,6 +207,8 @@ Commands:
   lint [--preset P]          Design + accessibility checks (recommended, strict, accessibility)
   analyze <kind>             Geometry stats: spacing | clusters | overlaps
                               (--min-ratio, --min-count, --limit)
+  export <svg|html>          Render pages or a subtree to SVG/HTML (--page ID, --root ID, --output FILE)
+  index [--embeddings]       Build the structural index; --embeddings adds the vector index
                               (--force rebuilds even if up to date)
   extract-assets              Write images to <base>.assets/images
   mcp                         Run the MCP server over stdio
@@ -243,6 +246,9 @@ Environment:
 Examples:
   dali design.fig inspect
   dali design.fig semantic-search "payment screen" --limit 10
+  dali design.fig lint --preset accessibility
+  dali design.fig analyze overlaps
+  dali design.fig export html --output design.html
   dali inspect                 # uses ./design.fig
   dali . index                 # indexes the .fig in this directory
 `)
