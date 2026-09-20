@@ -2,6 +2,7 @@ package index
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -24,7 +25,7 @@ func (db *DB) Write(doc *model.Document) error {
 	defer tx.Rollback()
 
 	// Cheap tiny tables: always rebuild.
-	for _, t := range []string{"documents", "pages", "components", "instances", "assets", "styles", "style_defs", "fonts"} {
+	for _, t := range []string{"documents", "pages", "components", "instances", "assets", "styles", "style_defs", "fonts", "variables"} {
 		if _, err := tx.Exec("DELETE FROM " + t); err != nil {
 			return fmt.Errorf("clear %s: %w", t, err)
 		}
@@ -113,6 +114,18 @@ func (db *DB) Write(doc *model.Document) error {
 		}
 	}
 
+	variableStmt, err := tx.Prepare(`INSERT OR REPLACE INTO variables (id, key, name, vset, type, modes) VALUES (?, ?, ?, ?, ?, ?)`)
+	if err != nil {
+		return err
+	}
+	defer variableStmt.Close()
+	for _, v := range doc.Variables {
+		modes, _ := json.Marshal(v.Modes)
+		if _, err := variableStmt.Exec(v.ID, v.Key, v.Name, v.Set, v.Type, string(modes)); err != nil {
+			return err
+		}
+	}
+
 	// --- nodes: incremental, diff by fingerprint ---
 	oldFP := make(map[string]string)
 	rows, err := tx.Query(`SELECT node_id, fingerprint FROM node_fingerprints`)
@@ -146,8 +159,8 @@ func (db *DB) Write(doc *model.Document) error {
 
 	// Upsert prepared statements.
 	nodeStmt, err := tx.Prepare(`INSERT OR REPLACE INTO nodes
-		(id, page_id, parent_id, type, name, position, visible, opacity, x, y, width, height, text, font_family, font_style, font_size, component_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		(id, page_id, parent_id, type, name, position, visible, opacity, x, y, width, height, text, font_family, font_style, font_size, text_align, text_align_v, line_height, letter_spacing, decoration, rotation, clip_content, component_id, runs, path, props)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
@@ -158,12 +171,6 @@ func (db *DB) Write(doc *model.Document) error {
 		return err
 	}
 	defer nodeAssetStmt.Close()
-
-	assetUseStmt, err := tx.Prepare(`INSERT OR IGNORE INTO node_assets (node_id, hash) SELECT a.node_id, a.hash FROM node_assets a WHERE a.node_id = ?`)
-	if err != nil {
-		return err
-	}
-	defer assetUseStmt.Close()
 
 	ftsStmt, err := tx.Prepare(`INSERT INTO text_search (node_id, name, content) VALUES (?, ?, ?)`)
 	if err != nil {
@@ -186,7 +193,10 @@ func (db *DB) Write(doc *model.Document) error {
 		if _, err := nodeStmt.Exec(
 			n.ID, n.PageID, n.ParentID, string(n.Type), n.Name, n.Position,
 			boolInt(n.Visible), n.Opacity, n.X, n.Y, n.Width, n.Height,
-			n.Text, n.FontFamily, n.FontStyle, n.FontSize, n.ComponentID,
+			n.Text, n.FontFamily, n.FontStyle, n.FontSize,
+			n.TextAlign, n.TextAlignV, n.LineHeight, n.LetterSpacing, n.Decoration,
+			n.Rotation, boolInt(n.ClipContent), n.ComponentID,
+			jsonString(n.Runs), n.Path, jsonString(n.Props),
 		); err != nil {
 			return err
 		}
@@ -215,10 +225,13 @@ func (db *DB) Write(doc *model.Document) error {
 		if _, ok := newFP[id]; ok {
 			continue
 		}
-		for _, d := range []string{"node_assets", "text_search", "nodes"} {
+		for _, d := range []string{"node_assets", "text_search"} {
 			if _, err := tx.Exec(`DELETE FROM `+d+` WHERE node_id = ?`, id); err != nil {
 				return fmt.Errorf("drop %s for %s: %w", d, id, err)
 			}
+		}
+		if _, err := tx.Exec(`DELETE FROM nodes WHERE id = ?`, id); err != nil {
+			return fmt.Errorf("drop nodes for %s: %w", id, err)
 		}
 		if _, err := delFP.Exec(id); err != nil {
 			return err
@@ -237,8 +250,10 @@ func nodeFingerprint(n *model.Node) string {
 		n.ID, n.PageID, n.ParentID, n.Type, n.Name, n.Position)
 	fmt.Fprintf(h, "%t\x00%.2f\x00%.2f\x00%.2f\x00%.2f\x00%.2f\x00",
 		n.Visible, n.Opacity, n.X, n.Y, n.Width, n.Height)
-	fmt.Fprintf(h, "%s\x00%s\x00%s\x00%.2f\x00%s\x00",
-		n.Text, n.FontFamily, n.FontStyle, n.FontSize, n.ComponentID)
+	fmt.Fprintf(h, "%s\x00%s\x00%s\x00%.2f\x00%s\x00%.2f\x00%.2f\x00%s\x00%.2f\x00%t\x00%s\x00%s\x00%x\x00%s\x00",
+		n.Text, n.FontFamily, n.FontStyle, n.FontSize, n.ComponentID,
+		n.LetterSpacing, n.LineHeight, n.TextAlign, n.Rotation, n.ClipContent, n.Decoration,
+		n.Path, n.Runs, jsonString(n.Props))
 	hashes := make([]string, 0, len(n.Images))
 	for _, img := range n.Images {
 		hashes = append(hashes, img.Hash)
@@ -253,4 +268,18 @@ func boolInt(v bool) int {
 		return 1
 	}
 	return 0
+}
+
+func jsonString(v any) string {
+	if v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }

@@ -10,7 +10,7 @@ import (
 	_ "modernc.org/sqlite/vec"
 )
 
-const SchemaVersion = 4
+const SchemaVersion = 6
 
 type DB struct {
 	sql *sql.DB
@@ -79,7 +79,17 @@ func (db *DB) migrate() error {
 			font_family TEXT,
 			font_style TEXT,
 			font_size REAL,
-			component_id TEXT
+			text_align TEXT,
+			text_align_v TEXT,
+			line_height REAL,
+			letter_spacing REAL,
+			decoration TEXT,
+			rotation REAL,
+			clip_content INTEGER,
+			component_id TEXT,
+			runs TEXT,
+			path TEXT,
+			props TEXT
 		)`,
 		`CREATE INDEX IF NOT EXISTS nodes_type_idx ON nodes(type)`,
 		`CREATE INDEX IF NOT EXISTS nodes_name_idx ON nodes(name)`,
@@ -136,6 +146,14 @@ func (db *DB) migrate() error {
 			count INTEGER,
 			PRIMARY KEY (family, style)
 		)`,
+		`CREATE TABLE IF NOT EXISTS variables (
+			id TEXT PRIMARY KEY,
+			key TEXT,
+			name TEXT,
+			vset TEXT,
+			type TEXT,
+			modes TEXT
+		)`,
 		`CREATE VIRTUAL TABLE IF NOT EXISTS text_search USING fts5(
 			node_id UNINDEXED,
 			name,
@@ -154,6 +172,50 @@ func (db *DB) migrate() error {
 	for _, s := range stmts {
 		if _, err := db.sql.Exec(s); err != nil {
 			return fmt.Errorf("migrate: %w", err)
+		}
+	}
+	return db.ensureColumns()
+}
+
+// ensureColumns backfills columns added to existing databases by newer schema
+// versions, so old indexes keep working until the next rebuild.
+func (db *DB) ensureColumns() error {
+	want := map[string][]string{
+		"nodes": {"text_align", "text_align_v", "line_height", "letter_spacing", "decoration", "rotation", "clip_content", "runs", "path", "props"},
+	}
+	for table, cols := range want {
+		rows, err := db.sql.Query(`PRAGMA table_info(` + table + `)`)
+		if err != nil {
+			return err
+		}
+		have := map[string]bool{}
+		for rows.Next() {
+			var cid int
+			var name, ctype string
+			var notnull int
+			var dflt any
+			var pk int
+			if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+				rows.Close()
+				return err
+			}
+			have[name] = true
+		}
+		rows.Close()
+		for _, col := range cols {
+			if have[col] {
+				continue
+			}
+			typ := "TEXT"
+			switch col {
+			case "line_height", "letter_spacing", "rotation":
+				typ = "REAL"
+			case "clip_content":
+				typ = "INTEGER"
+			}
+			if _, err := db.sql.Exec(`ALTER TABLE ` + table + ` ADD COLUMN ` + col + ` ` + typ); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

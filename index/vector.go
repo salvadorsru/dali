@@ -202,9 +202,23 @@ func (db *DB) DeleteVectors(ids []string) error {
 	return tx.Commit()
 }
 
+// VecIndexed reports whether the vector index has been built.
+func (db *DB) VecIndexed() bool {
+	var ok int
+	if err := db.sql.QueryRow(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'vec_nodes'`).Scan(&ok); err != nil {
+		return false
+	}
+	return true
+}
+
 func (db *DB) SearchVectors(query []float32, k int) ([]Neighbor, error) {
 	if k <= 0 {
 		k = 10
+	}
+	// Degrade gracefully when the vector index has not been built: callers
+	// fall back to full-text and structural results.
+	if !db.VecIndexed() {
+		return nil, nil
 	}
 	rows, err := db.sql.Query(
 		`SELECT node_id, distance FROM vec_nodes WHERE embedding MATCH ? AND k = ? ORDER BY distance`,

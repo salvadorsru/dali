@@ -2,6 +2,22 @@ package index
 
 import "testing"
 
+func TestSearchVectorsWithoutVecDegrades(t *testing.T) {
+	db, err := Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	n, err := db.SearchVectors([]float32{1, 0, 0}, 5)
+	if err != nil {
+		t.Fatalf("search without vec index must not fail: %v", err)
+	}
+	if len(n) != 0 {
+		t.Fatalf("expected no neighbors, got %+v", n)
+	}
+}
+
 func TestVec0(t *testing.T) {
 	db, err := Open(":memory:")
 	if err != nil {
