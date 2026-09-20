@@ -1,8 +1,6 @@
 package ir
 
 import (
-	"strings"
-
 	"github.com/salvadorsru/dali/model"
 	"github.com/salvadorsru/dali/query"
 )
@@ -224,56 +222,25 @@ type TokenSet struct {
 
 // GeneratorConfig controls code generation.
 type GeneratorConfig struct {
-	Framework       string // react, vue, html
-	Styling         string // tailwind, css, css-vars
 	OutputDir       string
 	ComponentDir    string
 	AssetsDir       string
 	TokensFile      string
-	UseTypeScript   bool
 	GenerateIndex   bool
 	ResponsiveImages bool
 	ImageSizes      []int
 	CSSVarPrefix    string
 }
 
-// Generator is the interface for framework-specific generators.
-type Generator interface {
-	GenerateComponent(spec ComponentSpec, tokens TokenSet, config GeneratorConfig) (string, error)
-	GenerateTokens(tokens TokenSet, config GeneratorConfig) (string, error)
-	GenerateIndex(components []ComponentSpec, config GeneratorConfig) (string, error)
-}
-
-// GeneratorFactory builds a generator for a framework.
-type GeneratorFactory func() Generator
-
-var generatorFactories = make(map[string]GeneratorFactory)
-
-// RegisterGenerator registers a generator factory for a framework.
-func RegisterGenerator(framework string, factory GeneratorFactory) {
-	generatorFactories[strings.ToLower(framework)] = factory
-}
-
-// GeneratorFor returns the registered generator for a framework, or nil.
-func GeneratorFor(framework string) Generator {
-	if factory, ok := generatorFactories[strings.ToLower(framework)]; ok {
-		return factory()
-	}
-	return nil
-}
-
 // DefaultConfig returns a sensible default configuration.
 func DefaultConfig() GeneratorConfig {
 	return GeneratorConfig{
-		Framework:        "react",
-		Styling:          "tailwind",
-		ComponentDir:     "components",
-		AssetsDir:        "assets",
-		TokensFile:       "tokens.css",
-		UseTypeScript:    true,
-		GenerateIndex:    true,
+		ComponentDir:   "components",
+		AssetsDir:      "assets",
+		TokensFile:     "tokens.css",
+		GenerateIndex:  true,
 		ResponsiveImages: false,
-		ImageSizes:       []int{1, 2},
-		CSSVarPrefix:     "dali",
+		ImageSizes:     []int{1, 2},
+		CSSVarPrefix:   "dali",
 	}
 }

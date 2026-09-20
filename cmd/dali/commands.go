@@ -425,12 +425,9 @@ func cmdUsages(args []string) error {
 
 func cmdGenerate(args []string) error {
 	fs := flag.NewFlagSet("generate", flag.ContinueOnError)
-	framework := fs.String("framework", "react", "target framework: react, vue, html")
-	styling := fs.String("styling", "tailwind", "styling approach: tailwind, css-vars, css")
 	outputDir := fs.String("out", "./generated", "output directory")
 	component := fs.String("component", "", "component ID to generate (default: all)")
-	typescript := fs.Bool("ts", true, "generate TypeScript (vs JavaScript)")
-	tokensFormat := fs.String("tokens", "css", "tokens format: css, ts, style-dict, figma")
+	tokensFormat := fs.String("tokens", "css", "tokens format: css, style-dict, figma")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -442,10 +439,7 @@ func cmdGenerate(args []string) error {
 	defer svc.Close()
 
 	config := ir.DefaultConfig()
-	config.Framework = *framework
-	config.Styling = *styling
 	config.OutputDir = *outputDir
-	config.UseTypeScript = *typescript
 
 	// If component specified, generate just that one
 	if *component != "" {

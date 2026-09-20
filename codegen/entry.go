@@ -4,23 +4,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
-	_ "github.com/salvadorsru/dali/codegen/html"
+	"github.com/salvadorsru/dali/codegen/html"
 	"github.com/salvadorsru/dali/codegen/ir"
-	_ "github.com/salvadorsru/dali/codegen/react"
 	"github.com/salvadorsru/dali/codegen/tokens"
 	"github.com/salvadorsru/dali/codegen/util"
-	_ "github.com/salvadorsru/dali/codegen/vue"
 	"github.com/salvadorsru/dali/query"
 )
 
 // GenerateComponents generates code for a list of component IDs.
 func GenerateComponents(svc *query.Service, componentIDs []string, config ir.GeneratorConfig) error {
-	gen := ir.GeneratorFor(config.Framework)
-	if gen == nil {
-		return fmt.Errorf("unknown framework: %s", config.Framework)
-	}
+	gen := html.HTMLGenerator{}
 
 	// Collect tokens once
 	tokenSet, err := tokens.CollectTokens(svc)
@@ -56,8 +50,7 @@ func GenerateComponents(svc *query.Service, componentIDs []string, config ir.Gen
 		}
 
 		filename := util.SanitizeComponentName(spec.Name)
-		ext := componentExt(config.Framework, config.UseTypeScript)
-		path := filepath.Join(componentDir, filename+ext)
+		path := filepath.Join(componentDir, filename+".html")
 		if err := os.WriteFile(path, []byte(code), 0o644); err != nil {
 			return err
 		}
@@ -80,7 +73,7 @@ func GenerateComponents(svc *query.Service, componentIDs []string, config ir.Gen
 		if err != nil {
 			return fmt.Errorf("generate index: %w", err)
 		}
-		indexPath := filepath.Join(componentDir, "index"+indexExt(config.Framework, config.UseTypeScript))
+		indexPath := filepath.Join(componentDir, "index.html")
 		if err := os.WriteFile(indexPath, []byte(indexCode), 0o644); err != nil {
 			return err
 		}
@@ -116,8 +109,6 @@ func GenerateTokens(svc *query.Service, config ir.GeneratorConfig, format string
 	switch format {
 	case "css", "css-vars":
 		code, err = tg.GenerateCSSVariables(tokenSet, config)
-	case "ts", "typescript":
-		code, err = tg.GenerateTypeScriptConstants(tokenSet, config)
 	case "style-dict", "styledictionary":
 		code, err = tg.GenerateStyleDictionary(tokenSet, config)
 	case "figma", "figma-tokens":
@@ -135,7 +126,6 @@ func GenerateTokens(svc *query.Service, config ir.GeneratorConfig, format string
 
 	ext := map[string]string{
 		"css":        ".css",
-		"ts":         ".ts",
 		"style-dict": ".json",
 		"figma":      ".json",
 	}[format]
@@ -145,33 +135,4 @@ func GenerateTokens(svc *query.Service, config ir.GeneratorConfig, format string
 
 	path := filepath.Join(config.OutputDir, "tokens"+ext)
 	return os.WriteFile(path, []byte(code), 0o644)
-}
-
-// componentExt returns the file extension for a generated component.
-func componentExt(framework string, ts bool) string {
-	switch strings.ToLower(framework) {
-	case "vue":
-		return ".vue"
-	case "html":
-		return ".html"
-	default:
-		if ts {
-			return ".tsx"
-		}
-		return ".jsx"
-	}
-}
-
-// indexExt returns the file extension for a generated index file.
-func indexExt(framework string, ts bool) string {
-	switch strings.ToLower(framework) {
-	case "html":
-		return ".html"
-	case "vue", "react":
-		if ts {
-			return ".ts"
-		}
-		return ".js"
-	}
-	return ".ts"
 }

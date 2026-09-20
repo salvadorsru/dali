@@ -9,14 +9,8 @@ import (
 	"github.com/salvadorsru/dali/codegen/util"
 )
 
-// HTMLGenerator implements Generator for semantic HTML + CSS variables.
+// HTMLGenerator implements Generator for semantic HTML + Tailwind.
 type HTMLGenerator struct{}
-
-func init() {
-	ir.RegisterGenerator("html", func() ir.Generator {
-		return &HTMLGenerator{}
-	})
-}
 
 // GenerateComponent generates semantic HTML with CSS variables.
 func (g *HTMLGenerator) GenerateComponent(spec ir.ComponentSpec, tokens ir.TokenSet, config ir.GeneratorConfig) (string, error) {
