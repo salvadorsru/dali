@@ -38,8 +38,14 @@ parser.Open  -> kiwi decode -> model.Build -> index.Write -> query.Service -> CL
 - `output/`, `mcp/`, `cmd/dali/`.
 
 MCP tools accept an optional `file` argument, so one server can serve several
-figs; `list_figs` discovers them. `dali mcp-config --opencode|--vscode` prints
-a ready-to-paste config.
+figs; `list_figs` discovers them. Lazy indexing is reported via MCP progress
+notifications (when the client sends `_meta.progressToken`) and always via
+`dali:` lines on stderr. `dali mcp-config` writes each editor's config
+(`--opencode|--cursor|--claude|--vscode|--cline|--roo|--windsurf`, or `--all`)
+into the current directory, merging with existing files: OpenCode `opencode.json`
+(`mcp`), Cursor `.cursor/mcp.json`, Claude Code `.mcp.json`, VS Code
+`.vscode/mcp.json` (`servers`), Cline `.cline/mcp.json`, Roo Code `.roo/mcp.json`,
+and Windsurf's global `~/.codeium/windsurf/mcp_config.json`.
 
 ## Semantic search
 
