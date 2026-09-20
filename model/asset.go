@@ -6,13 +6,13 @@ import (
 )
 
 type ImageRef struct {
-	Hash   string
-	Name   string
-	NodeID string
-	MIME   string
-	Path   string
-	Width  int
-	Height int
+	Hash   string `json:"hash"`
+	Name   string `json:"name"`
+	NodeID string `json:"node_id"`
+	MIME   string `json:"mime,omitempty"`
+	Path   string `json:"path,omitempty"`
+	Width  int    `json:"width,omitempty"`
+	Height int    `json:"height,omitempty"`
 }
 
 func nodeImages(m map[string]any, nodeID string) []ImageRef {

@@ -81,6 +81,11 @@ func guidValue(v any) string {
 	return formatGUID(g)
 }
 
+// guidOf unwraps a single-level guid wrapper such as {"guid": {...}}.
+func guidOf(v any) string {
+	return guid(asMap(v))
+}
+
 func parentGUID(m map[string]any) string {
 	pi := asMap(m["parentIndex"])
 	return guid(pi)
