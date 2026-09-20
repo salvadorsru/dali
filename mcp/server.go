@@ -101,6 +101,7 @@ func registerTools(s *mcp.Server, h *handlers) {
 	mcp.AddTool(s, &mcp.Tool{Name: "find_instances", Description: "List component instances, optionally filtered by name substring."}, h.findInstances)
 	mcp.AddTool(s, &mcp.Tool{Name: "find_assets", Description: "List image assets, optionally filtered by name substring."}, h.findAssets)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_image", Description: "Return a single image asset as base64 data, looked up by hash or name."}, h.getImage)
+	mcp.AddTool(s, &mcp.Tool{Name: "extract_assets", Description: "Write images to <base>.assets/images and return the file paths (Optionally filtered by name or hash)."}, h.extractAssets)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_fonts", Description: "List fonts used by text nodes, ordered by usage count."}, h.getFonts)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_styles", Description: "List style definitions (name, kind, resolved value, usage count), optionally filtered by name or kind, or without the raw payload."}, h.getStyles)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_tokens", Description: "Aggregate design tokens: solid colour palette, colour variables, fonts, text classes and flex layouts, ranked by usage."}, h.getTokens)

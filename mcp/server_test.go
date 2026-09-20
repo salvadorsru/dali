@@ -182,6 +182,79 @@ func TestNewTools(t *testing.T) {
 	}
 }
 
+// TestExtractAssets writes images to disk and reports file paths instead of
+// base64, without touching the repo's own extracted assets.
+func TestExtractAssets(t *testing.T) {
+	if _, err := os.Stat(sample); err != nil {
+		t.Skip("sample fig not present")
+	}
+	tmp := t.TempDir()
+	src, err := os.ReadFile(sample)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cp := filepath.Join(tmp, "extract.fig")
+	if err := os.WriteFile(cp, src, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.Background()
+	ct, st := mcp.NewInMemoryTransports()
+	srv, h := newServer(cp)
+	defer h.close()
+	go srv.Run(ctx, st)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+	session, err := client.Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+
+	res, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "extract_assets",
+		Arguments: map[string]any{"name": "menobalance"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.IsError || len(res.Content) == 0 {
+		t.Fatalf("extract_assets returned no content: %+v body=%q", res, textOf(res))
+	}
+	var out extractOutput
+	if err := json.Unmarshal([]byte(textOf(res)), &out); err != nil {
+		t.Fatalf("extract_assets parse: %v", err)
+	}
+	if len(out.Assets) == 0 {
+		t.Fatalf("extract_assets assets empty: %+v", out)
+	}
+	for _, a := range out.Assets {
+		if a.Path == "" || a.MIME == "" || a.Width == 0 || a.Height == 0 {
+			t.Fatalf("extract_assets asset not enriched: %+v", a)
+		}
+		if _, err := os.Stat(a.Path); err != nil {
+			t.Fatalf("asset file missing: %s: %v", a.Path, err)
+		}
+	}
+
+	// A hash filter extracts only that single asset.
+	one := out.Assets[0].Hash
+	res, err = session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "extract_assets",
+		Arguments: map[string]any{"hash": one},
+	})
+	if err != nil || res.IsError {
+		t.Fatalf("extract_assets hash filter: %v %+v", err, res)
+	}
+	var single extractOutput
+	if err := json.Unmarshal([]byte(textOf(res)), &single); err != nil {
+		t.Fatalf("extract_assets hash parse: %v", err)
+	}
+	if len(single.Assets) != 1 || single.Assets[0].Hash != one {
+		t.Fatalf("extract_assets hash filter = %+v", single)
+	}
+}
+
 // TestTokens exercises the design-token and component-contract tools.
 func TestTokens(t *testing.T) {
 	if _, err := os.Stat(sample); err != nil {
