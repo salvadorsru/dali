@@ -101,7 +101,7 @@ Dalí provides three complementary ways to search an indexed design.
 
 ### Structural
 
-The parsed Figma tree is preserved in SQLite, allowing queries based on nodes and their relationships. The `query` DSL accepts named-node expressions and a small XPath subset (`/`, `//`, `*`, `@name=`/`@name~`/`contains(@name,..)`); expressions starting with `/` are evaluated in-memory over the document tree by `query.XPath`. When a query matches nothing, `query.SuggestNames` token-scored near-miss names are offered.
+The parsed Figma tree is preserved in SQLite, allowing queries based on nodes and their relationships. The `query` DSL accepts field predicates (`type=`, `name=`, `name~`, `text~`, `font=`, `page=`, `component=`, `visible=`, numeric `width`/`height`/`font_size`/`opacity` with `=`, `!=`, `>`, `>=`, `<`, `<=`) combined with `AND`, and named-node relations (`descendants()`, `ancestors()`, `children()`), plus a small XPath subset (`/`, `//`, `*`, `@name=`/`@name~`/`contains(@name,..)`); expressions starting with `/` are evaluated in-memory over the document tree by `query.XPath`. When a query matches nothing, token-scored near-miss names are offered via `query.SuggestNames` (search, query) and `query.SuggestXPath` (XPath).
 
 ### Full-text
 
