@@ -207,6 +207,28 @@ func cmdFonts(args []string) error {
 	return nil
 }
 
+func cmdStyles(args []string) error {
+	svc, err := open(figFile)
+	if err != nil {
+		return err
+	}
+	defer svc.Close()
+
+	defs, err := svc.StyleDefs()
+	if err != nil {
+		return err
+	}
+	if jsonOut {
+		return output.JSON(os.Stdout, defs)
+	}
+	rows := make([][]string, 0, len(defs))
+	for _, d := range defs {
+		rows = append(rows, []string{d.Name, output.Label(d.Kind), output.Dim(d.Summary), output.Dim(strconv.Itoa(d.Usage))})
+	}
+	output.Table(os.Stdout, []string{"NAME", "KIND", "VALUE", "USES"}, rows)
+	return nil
+}
+
 func cmdQuery(args []string) error {
 	expr, err := arg(args, 0, "expression")
 	if err != nil {
@@ -326,7 +348,11 @@ func printContext(ctx *query.Context) {
 	if len(ctx.Styles) > 0 {
 		fmt.Println(output.Title(fmt.Sprintf("Styles (%d)", len(ctx.Styles))))
 		for _, s := range ctx.Styles {
-			fmt.Printf("  %s %s\n", output.Label(s.Kind), output.Dim(s.Key))
+			name := s.Name
+			if name == "" {
+				name = s.Key
+			}
+			fmt.Printf("  %s %s %s\n", output.Label(s.Kind), output.Bold(name), output.Dim(s.Summary))
 		}
 	}
 	if len(ctx.Assets) > 0 {

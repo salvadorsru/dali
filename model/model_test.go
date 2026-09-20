@@ -80,3 +80,60 @@ func TestBuildSkipsRemoved(t *testing.T) {
 		t.Fatalf("removed node kept: %+v", doc.All())
 	}
 }
+
+func TestStyleDefs(t *testing.T) {
+	fill := mkNode(1, "ROUNDED_RECTANGLE", "Brand/Primary", nil, "")
+	fill["styleType"] = "FILL"
+	fill["key"] = "k-fill"
+	fill["fillPaints"] = []any{map[string]any{
+		"type":   "SOLID",
+		"color":  map[string]any{"r": float32(1), "g": float32(0.5), "b": float32(0), "a": float32(1)},
+		"visible": true,
+	}}
+
+	text := mkNode(2, "TEXT", "Body/Regular", nil, "")
+	text["styleType"] = "TEXT"
+	text["key"] = "k-text"
+	text["fontName"] = map[string]any{"family": "Inter", "style": "Regular"}
+	text["fontSize"] = float32(16)
+	text["fillPaints"] = []any{map[string]any{
+		"type":   "SOLID",
+		"color":  map[string]any{"r": float32(0), "g": float32(0), "b": float32(0), "a": float32(1)},
+		"visible": true,
+	}}
+
+	dup := mkNode(3, "ROUNDED_RECTANGLE", "Old Anchor", nil, "")
+	dup["styleType"] = "FILL"
+	dup["key"] = "k-fill"
+
+	applied := mkNode(4, "FRAME", "Card", nil, "")
+	applied["styleIdForStrokeFill"] = map[string]any{"assetRef": map[string]any{"key": "k-fill"}}
+
+	doc := Build([]any{fill, text, dup, applied})
+	defs := doc.StyleDefs()
+
+	if len(defs) != 2 {
+		t.Fatalf("defs = %d, want 2", len(defs))
+	}
+	byKey := map[string]StyleDef{}
+	for _, d := range defs {
+		byKey[d.Key] = d
+	}
+	fd := byKey["k-fill"]
+	if fd.Kind != "FILL" || fd.Name != "Brand/Primary" || fd.NodeID != "0:1" {
+		t.Fatalf("fill def = %+v", fd)
+	}
+	if fd.Summary != "#FF8000" {
+		t.Fatalf("fill summary = %q", fd.Summary)
+	}
+	if fd.Usage != 1 {
+		t.Fatalf("fill usage = %d, want 1", fd.Usage)
+	}
+	if fd.Raw == "" {
+		t.Fatal("raw not set")
+	}
+	td := byKey["k-text"]
+	if td.Kind != "TEXT" || td.Summary != "Inter Regular · 16px · #000000" {
+		t.Fatalf("text def = %+v summary %q", td, td.Summary)
+	}
+}

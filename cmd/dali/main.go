@@ -27,6 +27,7 @@ var commands = map[string]func([]string) error{
 	"components":      cmdComponents,
 	"assets":          cmdAssets,
 	"fonts":           cmdFonts,
+	"styles":          cmdStyles,
 	"query":           cmdQuery,
 	"index":           cmdIndex,
 	"extract-assets":  cmdExtractAssets,
@@ -34,11 +35,12 @@ var commands = map[string]func([]string) error{
 	"mcp-config":      cmdMCPConfig,
 	"serve":           cmdServe,
 	"stop":            cmdStop,
+	"clean":           cmdClean,
 	"version":         cmdVersion,
 }
 
 // figless commands do not operate on a fig file.
-var figless = map[string]bool{"serve": true, "stop": true, "version": true, "mcp-config": true}
+var figless = map[string]bool{"serve": true, "stop": true, "clean": true, "version": true, "mcp-config": true}
 
 func main() {
 	args := stripGlobals(os.Args[1:])
@@ -191,6 +193,7 @@ Commands:
   components                  List components
   assets                      List image assets
   fonts                       List fonts in use
+  styles                      List style definitions (name, kind, value, uses)
   query <expression>          Structural query (type=, name~, descendants())
   index [--embeddings]        Build the structural index; --embeddings adds the vector index
                               (--force rebuilds even if up to date)
@@ -204,6 +207,7 @@ Commands:
                               existing config
   serve                       Keep the embedding server warm (reused later)
   stop                        Stop the managed embedding server
+  clean                       Stop the server and delete the downloaded engine + model
 
 Flags:
   --json       output JSON

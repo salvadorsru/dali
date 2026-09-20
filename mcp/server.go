@@ -105,12 +105,13 @@ func newServer(def string) (*mcp.Server, *handlers) {
 
 	mcp.AddTool(s, &mcp.Tool{Name: "search_figma", Description: "Full-text search across node names and text content."}, h.search)
 	mcp.AddTool(s, &mcp.Tool{Name: "semantic_search_figma", Description: "Semantic (vector) search across nodes. Use for conceptual queries with no exact text match."}, h.semanticSearch)
-	mcp.AddTool(s, &mcp.Tool{Name: "get_node", Description: "Get a single node by id."}, h.getNode)
+	mcp.AddTool(s, &mcp.Tool{Name: "get_node", Description: "Get a single node by id, including the styles applied to it (name, kind, value)."}, h.getNode)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_context", Description: "Get structural context for a node: path, parent, children, component, styles, assets."}, h.getContext)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_children", Description: "List the direct children of a node."}, h.getChildren)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_parent", Description: "Get the parent of a node."}, h.getParent)
 	mcp.AddTool(s, &mcp.Tool{Name: "find_components", Description: "List components, optionally filtered by name substring."}, h.findComponents)
 	mcp.AddTool(s, &mcp.Tool{Name: "find_assets", Description: "List image assets, optionally filtered by name substring."}, h.findAssets)
+	mcp.AddTool(s, &mcp.Tool{Name: "get_styles", Description: "List style definitions (name, kind, resolved value, usage count), optionally filtered by name substring."}, h.getStyles)
 	mcp.AddTool(s, &mcp.Tool{Name: "find_text", Description: "Search text content of TEXT nodes."}, h.findText)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_figs", Description: "List the .fig/.deck files available in the current directory."}, h.listFigs)
 
@@ -266,16 +267,25 @@ func (h *handlers) semanticSearch(ctx context.Context, req *mcp.CallToolRequest,
 	return nil, out, nil
 }
 
-func (h *handlers) getNode(ctx context.Context, req *mcp.CallToolRequest, in idInput) (*mcp.CallToolResult, NodeRef, error) {
+type NodeView struct {
+	Node   NodeRef        `json:"node"`
+	Styles []model.Style  `json:"styles"`
+}
+
+func (h *handlers) getNode(ctx context.Context, req *mcp.CallToolRequest, in idInput) (*mcp.CallToolResult, NodeView, error) {
 	svc, err := h.service(in.File, newNotifier(ctx, req))
 	if err != nil {
-		return nil, NodeRef{}, err
+		return nil, NodeView{}, err
 	}
 	n, err := svc.Node(in.ID)
 	if err != nil || n == nil {
-		return nil, NodeRef{}, err
+		return nil, NodeView{}, err
 	}
-	return nil, toRef(n), nil
+	view := NodeView{Node: toRef(n)}
+	if view.Styles, err = svc.StylesOf(in.ID); err != nil {
+		return nil, NodeView{}, err
+	}
+	return nil, view, nil
 }
 
 func (h *handlers) getContext(ctx context.Context, req *mcp.CallToolRequest, in idInput) (*mcp.CallToolResult, ContextView, error) {
@@ -393,6 +403,31 @@ func (h *handlers) findAssets(ctx context.Context, req *mcp.CallToolRequest, in 
 		assets = filtered
 	}
 	return nil, assetsOutput{Assets: assets}, nil
+}
+
+type stylesOutput struct {
+	Styles []model.StyleDef `json:"styles"`
+}
+
+func (h *handlers) getStyles(ctx context.Context, req *mcp.CallToolRequest, in filterInput) (*mcp.CallToolResult, stylesOutput, error) {
+	svc, err := h.service(in.File, newNotifier(ctx, req))
+	if err != nil {
+		return nil, stylesOutput{}, err
+	}
+	defs, err := svc.StyleDefs()
+	if err != nil {
+		return nil, stylesOutput{}, err
+	}
+	if in.Name != "" {
+		var filtered []model.StyleDef
+		for _, d := range defs {
+			if containsFold(d.Name, in.Name) {
+				filtered = append(filtered, d)
+			}
+		}
+		defs = filtered
+	}
+	return nil, stylesOutput{Styles: defs}, nil
 }
 
 func (h *handlers) findText(ctx context.Context, req *mcp.CallToolRequest, in searchInput) (*mcp.CallToolResult, searchOutput, error) {

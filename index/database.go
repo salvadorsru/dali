@@ -10,7 +10,7 @@ import (
 	_ "modernc.org/sqlite/vec"
 )
 
-const SchemaVersion = 3
+const SchemaVersion = 4
 
 type DB struct {
 	sql *sql.DB
@@ -117,6 +117,14 @@ func (db *DB) migrate() error {
 			key TEXT,
 			node_id TEXT,
 			PRIMARY KEY (node_id, kind, key)
+		)`,
+		`CREATE TABLE IF NOT EXISTS style_defs (
+			key TEXT PRIMARY KEY,
+			kind TEXT,
+			name TEXT,
+			node_id TEXT,
+			summary TEXT,
+			raw TEXT
 		)`,
 		`CREATE TABLE IF NOT EXISTS fonts (
 			family TEXT,

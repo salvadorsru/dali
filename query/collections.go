@@ -68,7 +68,42 @@ func (s *Service) Styles() ([]model.Style, error) {
 }
 
 func (s *Service) StylesOf(nodeID string) ([]model.Style, error) {
-	return s.styles(`SELECT kind, key, node_id FROM styles WHERE node_id = ? ORDER BY kind, key`, nodeID)
+	rows, err := s.sql.Query(`SELECT st.kind, st.key, st.node_id, COALESCE(d.name, ''), COALESCE(d.summary, '')
+		FROM styles st LEFT JOIN style_defs d ON d.key = st.key
+		WHERE st.node_id = ? ORDER BY st.kind, st.key`, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []model.Style
+	for rows.Next() {
+		var st model.Style
+		if err := rows.Scan(&st.Kind, &st.Key, &st.NodeID, &st.Name, &st.Summary); err != nil {
+			return nil, err
+		}
+		out = append(out, st)
+	}
+	return out, rows.Err()
+}
+
+// StyleDefs returns every style definition with its resolved value and usage
+// count, ordered by kind then name.
+func (s *Service) StyleDefs() ([]model.StyleDef, error) {
+	rows, err := s.sql.Query(`SELECT d.key, d.kind, d.name, d.node_id, d.summary, d.raw, (SELECT COUNT(*) FROM styles st WHERE st.key = d.key)
+		FROM style_defs d ORDER BY d.kind, d.name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []model.StyleDef
+	for rows.Next() {
+		var d model.StyleDef
+		if err := rows.Scan(&d.Key, &d.Kind, &d.Name, &d.NodeID, &d.Summary, &d.Raw, &d.Usage); err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
 }
 
 func (s *Service) styles(query string, args ...any) ([]model.Style, error) {

@@ -13,7 +13,7 @@ func (db *DB) Write(doc *model.Document) error {
 	}
 	defer tx.Rollback()
 
-	for _, t := range []string{"documents", "pages", "nodes", "node_assets", "components", "instances", "assets", "styles", "fonts", "text_search"} {
+	for _, t := range []string{"documents", "pages", "nodes", "node_assets", "components", "instances", "assets", "styles", "style_defs", "fonts", "text_search"} {
 		if _, err := tx.Exec("DELETE FROM " + t); err != nil {
 			return fmt.Errorf("clear %s: %w", t, err)
 		}
@@ -114,6 +114,17 @@ func (db *DB) Write(doc *model.Document) error {
 	defer styleStmt.Close()
 	for _, s := range doc.StyleUsages() {
 		if _, err := styleStmt.Exec(s.Kind, s.Key, s.NodeID); err != nil {
+			return err
+		}
+	}
+
+	styleDefStmt, err := tx.Prepare(`INSERT OR REPLACE INTO style_defs (key, kind, name, node_id, summary, raw) VALUES (?, ?, ?, ?, ?, ?)`)
+	if err != nil {
+		return err
+	}
+	defer styleDefStmt.Close()
+	for _, d := range doc.StyleDefs() {
+		if _, err := styleDefStmt.Exec(d.Key, d.Kind, d.Name, d.NodeID, d.Summary, d.Raw); err != nil {
 			return err
 		}
 	}
