@@ -148,6 +148,7 @@ download without prompting.
 | `mcp-config [flags]` | Write MCP config files for AI editors. |
 | `serve` | Keep the managed embedding server warm (reused later). |
 | `stop` | Stop the managed embedding server. |
+| `clean` | Stop the server and delete the downloaded engine + model (~350 MB). |
 | `version` | Print version and build info. |
 
 ### Command flags
@@ -334,11 +335,14 @@ dali semantic-search "payment screen"   # slow: downloads and starts the server
 dali semantic-search "buttons"          # fast: reuses the warm server
 dali serve                              # keep it alive between sessions
 dali stop                               # stop it when you are done
+dali clean                              # stop it and free the ~350 MB cache
 ```
 
-Set `DALI_LLAMA_KEEP=0` to stop the server after every command. Embedding runs
-through a worker pool sized from the machine, feeding a single SQLite writer in
-one transaction per batch.
+`dali clean` deletes the downloaded engine and model. The vectors live in the
+SQLite index, so nothing is re-embedded; the model is only needed again to
+generate embeddings for new or changed nodes. Set `DALI_LLAMA_KEEP=0` to stop
+the server after every command. Embedding runs through a worker pool sized
+from the machine, feeding a single SQLite writer in one transaction per batch.
 
 ## MCP
 
