@@ -23,6 +23,8 @@ type searchInput struct {
 
 type searchOutput struct {
 	Results []NodeRef `json:"results"`
+	// Suggestions lists layer names close to the query when nothing matched.
+	Suggestions []string `json:"suggestions,omitempty"`
 }
 
 func (h *handlers) search(ctx context.Context, req *mcp.CallToolRequest, in searchInput) (*mcp.CallToolResult, searchOutput, error) {
@@ -48,6 +50,9 @@ func (h *handlers) search(ctx context.Context, req *mcp.CallToolRequest, in sear
 	out := searchOutput{Results: make([]NodeRef, 0, len(results))}
 	for _, r := range results {
 		out.Results = append(out.Results, NodeRef{ID: r.ID, Type: r.Type, Name: r.Name, Text: r.Text, Page: r.Page, PagePath: r.Path})
+	}
+	if len(out.Results) == 0 {
+		out.Suggestions = suggest(svc, in.Query)
 	}
 	return nil, out, nil
 }

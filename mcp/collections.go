@@ -263,7 +263,7 @@ func (h *handlers) getStats(ctx context.Context, req *mcp.CallToolRequest, in fi
 
 type queryInput struct {
 	File  string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
-	Query string `json:"query" jsonschema:"structural expression, e.g. type=FRAME, name~\"card\", children(\"Header\")"`
+	Query string `json:"query" jsonschema:"structural expression, e.g. type=FRAME AND visible=true, name~\"card\", text~price, width>=200, children(\"Header\")"`
 	Limit int    `json:"limit,omitempty" jsonschema:"max results, default 50"`
 }
 
@@ -286,7 +286,11 @@ func (h *handlers) queryFigma(ctx context.Context, req *mcp.CallToolRequest, in 
 	if len(nodes) > limit {
 		nodes = nodes[:limit]
 	}
-	return nil, componentsOutput{Components: toRefs(nodes)}, nil
+	out := componentsOutput{Components: toRefs(nodes)}
+	if len(out.Components) == 0 {
+		out.Suggestions = suggest(svc, in.Query)
+	}
+	return nil, out, nil
 }
 
 func (h *handlers) xpathFigma(ctx context.Context, req *mcp.CallToolRequest, in queryInput) (*mcp.CallToolResult, componentsOutput, error) {
@@ -305,7 +309,16 @@ func (h *handlers) xpathFigma(ctx context.Context, req *mcp.CallToolRequest, in 
 	if len(nodes) > limit {
 		nodes = nodes[:limit]
 	}
-	return nil, componentsOutput{Components: toRefs(nodes)}, nil
+	out := componentsOutput{Components: toRefs(nodes)}
+	if len(out.Components) == 0 {
+		sugs, err := svc.SuggestXPath(in.Query, 8)
+		if err == nil {
+			for _, s := range sugs {
+				out.Suggestions = append(out.Suggestions, s.Name)
+			}
+		}
+	}
+	return nil, out, nil
 }
 
 func filterByName(nodes []*model.Node, name string) []*model.Node {

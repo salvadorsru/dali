@@ -86,12 +86,12 @@ func newServer(def string) (*mcp.Server, *handlers) {
 }
 
 func registerTools(s *mcp.Server, h *handlers) {
-	mcp.AddTool(s, &mcp.Tool{Name: "search_figma", Description: "Full-text search across node names and text content."}, h.search)
+	mcp.AddTool(s, &mcp.Tool{Name: "search_figma", Description: "Full-text search across node names and text content. Suggests near-miss names when nothing matches."}, h.search)
 	mcp.AddTool(s, &mcp.Tool{Name: "semantic_search_figma", Description: "Semantic (vector) search across nodes. Use for conceptual queries with no exact text match."}, h.semanticSearch)
 	mcp.AddTool(s, &mcp.Tool{Name: "hybrid_search_figma", Description: "Fuse full-text, semantic and structural search into one ranked result list. Use for queries that need both wording and meaning."}, h.hybridSearch)
 	mcp.AddTool(s, &mcp.Tool{Name: "find_text", Description: "Search text content of TEXT nodes."}, h.findText)
-	mcp.AddTool(s, &mcp.Tool{Name: "query_figma", Description: "Query the document tree with structural expressions, e.g. type=FRAME, name~\"card\", children(\"Header\")."}, h.queryFigma)
-	mcp.AddTool(s, &mcp.Tool{Name: "xpath_figma", Description: "Query the document tree with an XPath subset, e.g. //FRAME[@name~'card'], /DOCUMENT/CANVAS, //*[contains(@name,'button')]."}, h.xpathFigma)
+	mcp.AddTool(s, &mcp.Tool{Name: "query_figma", Description: "Query the document tree with structural expressions, e.g. type=FRAME, name~\"card\", text~price, visible=true, width>=200, component=Button, children(\"Header\"); combine terms with AND. Suggests near-miss names when nothing matches."}, h.queryFigma)
+	mcp.AddTool(s, &mcp.Tool{Name: "xpath_figma", Description: "Query the document tree with an XPath subset, e.g. //FRAME[@name~'card'], /DOCUMENT/CANVAS, //*[contains(@name,'button')]. Suggests near-miss names when nothing matches."}, h.xpathFigma)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_node", Description: "Get a single node by id, including the styles applied to it (name, kind, value)."}, h.getNode)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_context", Description: "Get structural context for a node: path, parent, children, component, styles, assets."}, h.getContext)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_children", Description: "List the direct children of a node."}, h.getChildren)
