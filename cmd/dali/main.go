@@ -34,6 +34,8 @@ var commands = map[string]func([]string) error{
 	"xpath":           cmdXPath,
 	"index":           cmdIndex,
 	"extract-assets":  cmdExtractAssets,
+	"lint":            cmdLint,
+	"analyze":         cmdAnalyze,
 	"mcp":             cmdMCP,
 	"mcp-config":      cmdMCPConfig,
 	"serve":           cmdServe,
@@ -201,6 +203,9 @@ Commands:
   styles                      List style definitions (name, kind, value, uses)
   query <expression>          Structural query DSL (type=, name~, descendants())
   xpath <expression>          XPath subset over the tree (/ // * @name= @name~ contains()) [--limit N]
+  lint [--preset P]          Design + accessibility checks (recommended, strict, accessibility)
+  analyze <kind>             Geometry stats: spacing | clusters | overlaps
+                              (--min-ratio, --min-count, --limit)
                               (--force rebuilds even if up to date)
   extract-assets              Write images to <base>.assets/images
   mcp                         Run the MCP server over stdio

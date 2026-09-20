@@ -110,6 +110,8 @@ func registerTools(s *mcp.Server, h *handlers) {
 	mcp.AddTool(s, &mcp.Tool{Name: "get_stats", Description: "Summarize the document: node counts by type, page and node totals."}, h.getStats)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_pages", Description: "List the pages (canvases) of the document in order."}, h.listPages)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_figs", Description: "List the .fig/.deck files available in the current directory."}, h.listFigs)
+	mcp.AddTool(s, &mcp.Tool{Name: "lint_figma", Description: "Run design-quality and accessibility checks over the document (contrast, font size, touch targets, generic names, empty frames, duplicate names, unused components). Presets: recommended, strict, accessibility."}, h.lintFigma)
+	mcp.AddTool(s, &mcp.Tool{Name: "analyze_figma", Description: "Geometric analysis of the document: spacing (repeated layout gaps), clusters (repeated node sizes), or overlaps (intersecting siblings)."}, h.analyzeFigma)
 }
 
 // resolve turns a tool's optional "file" argument into an absolute path,

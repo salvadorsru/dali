@@ -566,6 +566,41 @@ func styleSummary(raw map[string]any, kind string) string {
 	return s
 }
 
+// Fills returns the node's direct fill paints.
+func (n *Node) Fills() []any { return paintsOf(n, "FILL") }
+
+// StrokeHex returns the first visible solid stroke color, if any.
+func (n *Node) StrokeHex() (string, bool) {
+	for _, p := range paintsOf(n, "STROKE") {
+		pm := asMap(p)
+		if pm == nil || !paintVisible(p) || asString(pm["type"]) != "SOLID" {
+			continue
+		}
+		if c := colorOf(pm); c != "" {
+			return c, true
+		}
+	}
+	return "", false
+}
+
+// FillHex returns the first visible solid fill color, if any.
+func (n *Node) FillHex() (string, bool) {
+	for _, p := range n.Fills() {
+		pm := asMap(p)
+		if pm == nil || !paintVisible(p) || asString(pm["type"]) != "SOLID" {
+			continue
+		}
+		if c := colorOf(pm); c != "" {
+			return c, true
+		}
+	}
+	return "", false
+}
+
+// Layout returns the node's normalized auto-layout info (layoutMode, alignment,
+// gaps, padding, radius, stroke), empty for nodes without meaningful geometry.
+func (n *Node) Layout() map[string]any { return layoutInfo(n) }
+
 func textSummary(raw map[string]any) string {
 	var parts []string
 	if fn := asMap(raw["fontName"]); fn != nil {
