@@ -64,6 +64,25 @@ func (s *Service) SuggestNames(pattern string, limit int) ([]Suggest, error) {
 	return scored, nil
 }
 
+// SuggestXPath suggests near-miss names for an XPath expression that matched
+// nothing, scoring on the predicate value of the last step, falling back to
+// its node type.
+func (s *Service) SuggestXPath(expr string, limit int) ([]Suggest, error) {
+	sel, err := parseXPath(expr)
+	if err != nil {
+		return nil, nil
+	}
+	last := sel.steps[len(sel.steps)-1]
+	pattern := last.name
+	if pattern == "" {
+		pattern = last.ntype
+	}
+	if pattern == "" {
+		return nil, nil
+	}
+	return s.SuggestNames(pattern, limit)
+}
+
 // splitTokens turns a search pattern into lowercase words, splitting on
 // whitespace and camelCase boundaries like pencil's name suggester.
 func splitTokens(pattern string) []string {

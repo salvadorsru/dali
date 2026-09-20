@@ -144,14 +144,34 @@ func (s *Service) UnifiedSearch(ctx context.Context, emb embed.Embedder, opts Un
 }
 
 // isStructuralExpr reports whether the query text looks like a structural
-// expression (a closing paren or bracket), so UnifiedSearch can try it
-// structurally without being explicitly told.
+// expression (a closing paren or bracket, or a known-field predicate) so
+// UnifiedSearch can try it structurally without being explicitly told.
 func isStructuralExpr(q string) bool {
+	q = strings.TrimSpace(q)
 	if q == "" {
 		return false
 	}
-	c := q[len(q)-1]
-	return c == ')' || c == ']'
+	if c := q[len(q)-1]; c == ')' || c == ']' {
+		return true
+	}
+	if !strings.ContainsAny(q, "=~<>!") {
+		return false
+	}
+	return predFieldPrefix(q) != ""
+}
+
+// predFieldPrefix returns the leading field name when the query starts with a
+// known DSL predicate field, otherwise "".
+func predFieldPrefix(q string) string {
+	i := 0
+	for i < len(q) && isIdent(q[i]) {
+		i++
+	}
+	field := strings.ToLower(q[:i])
+	if _, ok := predFields[field]; ok {
+		return field
+	}
+	return ""
 }
 
 func (s *Service) queryStructural(ctx context.Context, opts UnifiedOptions) ([]Result, error) {
