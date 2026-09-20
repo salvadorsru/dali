@@ -5,7 +5,8 @@ import (
 	"strings"
 )
 
-// Dir returns the asset directory for a fig file: design.fig -> design.assets.
+// Dir is the directory that holds the extracted assets for a fig file.
+// It stays next to the .fig (user-facing), not inside .dali.
 func Dir(figPath string) string {
 	base := strings.TrimSuffix(figPath, filepath.Ext(figPath))
 	return base + ".assets"
