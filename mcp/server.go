@@ -175,9 +175,11 @@ func (h *handlers) close() {
 }
 
 type searchInput struct {
-	File  string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
-	Query string `json:"query" jsonschema:"search text"`
-	Limit int    `json:"limit,omitempty" jsonschema:"max results, default 20"`
+	File        string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
+	Query       string `json:"query" jsonschema:"search text"`
+	Limit       int    `json:"limit,omitempty" jsonschema:"max results, default 20"`
+	Context     bool   `json:"context,omitempty" jsonschema:"include parent, ancestors and children next to each result"`
+	MaxChildren int    `json:"max_children,omitempty" jsonschema:"max direct children per result when context is on, default 5"`
 }
 
 type searchOutput struct {
@@ -194,7 +196,13 @@ func (h *handlers) search(ctx context.Context, req *mcp.CallToolRequest, in sear
 	if limit <= 0 {
 		limit = 20
 	}
-	results, err := svc.Search(in.Query, limit)
+	results, err := svc.UnifiedSearch(ctx, h.emb, query.UnifiedOptions{
+		Query:       in.Query,
+		Limit:       limit,
+		Mode:        query.ModeText,
+		Context:     in.Context,
+		MaxChildren: in.MaxChildren,
+	})
 	if err != nil {
 		return nil, searchOutput{}, err
 	}
@@ -439,7 +447,12 @@ func (h *handlers) findText(ctx context.Context, req *mcp.CallToolRequest, in se
 	if limit <= 0 {
 		limit = 20
 	}
-	results, err := svc.Search(in.Query, limit*4)
+	results, err := svc.UnifiedSearch(ctx, h.emb, query.UnifiedOptions{
+		Query:  in.Query,
+		Type:   string(model.TypeText),
+		Limit:  limit * 4,
+		Mode:   query.ModeHybrid,
+	})
 	if err != nil {
 		return nil, searchOutput{}, err
 	}
