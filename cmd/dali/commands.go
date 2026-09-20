@@ -29,7 +29,11 @@ func cmdSearch(args []string) error {
 	}
 	defer svc.Close()
 
-	results, err := svc.Search(text, 50)
+	results, err := svc.UnifiedSearch(context.Background(), nil, query.UnifiedOptions{
+		Query: text,
+		Limit: 50,
+		Mode:  query.ModeText,
+	})
 	if err != nil {
 		return err
 	}
