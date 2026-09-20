@@ -1,8 +1,10 @@
 package query
 
 import (
+	"crypto/sha256"
 	"database/sql"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/salvadorsru/dali/index"
@@ -73,7 +75,7 @@ func ensure(db *index.DB, figPath string, force bool, building func()) (bool, er
 		return false, err
 	}
 	defer f.Close()
-	doc := model.Build(f.NodeChanges())
+	doc := model.Build(f.NodeChanges(), f.Blobs())
 	if err := db.Write(doc); err != nil {
 		return false, err
 	}
@@ -83,14 +85,45 @@ func ensure(db *index.DB, figPath string, force bool, building func()) (bool, er
 	return true, nil
 }
 
-// ponytail: source key uses size+mtime, not content hash. Add sha256 if
-// mtime-preserving edits become a problem.
+// ponytail: source key blends size, mtime and a sampled content hash, so index
+// reuse survives mtime-preserving edits (git checkout, touch) while staying
+// cheap on large files (2 MB reads). Reading sampled blocks is best-effort: if
+// it fails we fall back to size+mtime so indexing is never blocked.
 func sourceKey(figPath string) (string, error) {
 	fi, err := os.Stat(figPath)
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%d:%d:%d:%d", fi.Size(), fi.ModTime().Unix(), parser.Version, index.SchemaVersion), nil
+	return fmt.Sprintf("%d:%d:%s:%d:%d", fi.Size(), fi.ModTime().Unix(), sampleHash(figPath, fi.Size()), parser.Version, index.SchemaVersion), nil
+}
+
+// sampleHash hashes the first and last 1 MB of a file. Small files are hashed
+// whole (the two reads overlap, but the digest is stable).
+func sampleHash(path string, size int64) string {
+	const chunk = 1 << 20
+	if size <= 0 {
+		return ""
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	h := sha256.New()
+	offsets := []int64{0}
+	if tail := size - chunk; tail > 0 {
+		offsets = append(offsets, tail)
+	}
+	for _, off := range offsets {
+		n := int64(chunk)
+		if off+n > size {
+			n = size - off
+		}
+		if _, err := io.CopyN(h, io.NewSectionReader(f, off, n), n); err != nil {
+			return ""
+		}
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
 func (s *Service) Document() (string, error) {

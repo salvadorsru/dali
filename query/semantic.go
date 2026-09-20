@@ -37,6 +37,9 @@ func (o Options) hasFilter() bool { return o.Type != "" || o.PageID != "" }
 // SemanticSearch embeds the query and returns the nearest nodes, optionally
 // filtered by node type and page.
 func (s *Service) SemanticSearch(ctx context.Context, emb embed.Embedder, opts Options) ([]Result, error) {
+	if !s.db.VecIndexed() {
+		return nil, nil
+	}
 	vectors, err := emb.Embed(ctx, []string{opts.Query})
 	if err != nil {
 		return nil, err

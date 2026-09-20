@@ -1,6 +1,7 @@
 package query
 
 import (
+	"context"
 	"os"
 	"strings"
 	"testing"
@@ -56,6 +57,20 @@ func TestServiceIntegration(t *testing.T) {
 	ctx, err := svc.Context(comps[0].ID)
 	if err != nil || ctx == nil || ctx.Node == nil {
 		t.Fatalf("context: %+v, err %v", ctx, err)
+	}
+
+	// UnifiedSearch with a type filter must not hit the structural branch's
+	// former "no such column: node_id" bug.
+	unified, err := svc.UnifiedSearch(context.Background(), nil, UnifiedOptions{
+		Query: "añadir", Type: "TEXT", Limit: 5, Mode: ModeHybrid,
+	})
+	if err != nil {
+		t.Fatalf("unified search: %v", err)
+	}
+	for _, r := range unified {
+		if r.Type != "TEXT" {
+			t.Fatalf("unified result type = %q", r.Type)
+		}
 	}
 }
 

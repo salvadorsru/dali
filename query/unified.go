@@ -61,6 +61,11 @@ type UnifiedOptions struct {
 	PageID string
 	Limit  int
 	Mode   Mode
+	// Structural forces the query text to be parsed as a structural
+	// expression (type=, name~, descendants(), ...). If false the text is
+	// still tried structurally when it looks like one, but a failed parse is
+	// skipped instead of failing the whole search.
+	Structural bool
 	// Context requests contextual enrichment (parent, ancestors, children) on
 	// each returned result. Off by default so plain searches stay cheap.
 	Context     bool
@@ -100,12 +105,17 @@ func (s *Service) UnifiedSearch(ctx context.Context, emb embed.Embedder, opts Un
 		groups = append(groups, semantic)
 	}
 
-	// Structural search only when explicit structural filters or a structural query expression
-	hasStructural := opts.Type != "" || opts.PageID != "" || (len(opts.Query) > 0 && (opts.Query[len(opts.Query)-1] == ')' || opts.Query[len(opts.Query)-1] == ']'))
-	if hasStructural {
-		if filtered, err := s.queryStructural(ctx, opts); err != nil {
-			return nil, err
-		} else if len(filtered) > 0 {
+	// Structural candidates are best-effort unless explicitly requested: a
+	// quote that accidentally ends in ')' must never sink the whole search.
+	if opts.Structural || opts.Type != "" || opts.PageID != "" || isStructuralExpr(opts.Query) {
+		filtered, err := s.queryStructural(ctx, opts)
+		if err != nil {
+			if opts.Structural {
+				return nil, err
+			}
+			filtered = nil
+		}
+		if len(filtered) > 0 {
 			groups = append(groups, filtered)
 		}
 	}
@@ -131,24 +141,38 @@ func (s *Service) UnifiedSearch(ctx context.Context, emb embed.Embedder, opts Un
 	return ranked, nil
 }
 
+// isStructuralExpr reports whether the query text looks like a structural
+// expression (a closing paren or bracket), so UnifiedSearch can try it
+// structurally without being explicitly told.
+func isStructuralExpr(q string) bool {
+	if q == "" {
+		return false
+	}
+	c := q[len(q)-1]
+	return c == ')' || c == ']'
+}
+
 func (s *Service) queryStructural(ctx context.Context, opts UnifiedOptions) ([]Result, error) {
-	if i := len(opts.Query) - 1; i >= 0 && (opts.Query[i] == ')' || opts.Query[i] == ']') {
-		nodes, err := s.Query(opts.Query)
-		if err != nil {
-			return nil, err
-		}
-		out := make([]Result, 0, len(nodes))
-		for _, n := range nodes {
-			r := resultFromNode(n)
-			if err := s.fill(&r); err != nil {
+	if opts.Type == "" && opts.PageID == "" {
+		if query := opts.Query; query != "" && (opts.Structural || isStructuralExpr(query)) {
+			nodes, err := s.Query(query)
+			if err != nil {
 				return nil, err
 			}
-			out = append(out, r)
+			out := make([]Result, 0, len(nodes))
+			for _, n := range nodes {
+				r := resultFromNode(n)
+				if err := s.fill(&r); err != nil {
+					return nil, err
+				}
+				out = append(out, r)
+			}
+			return out, nil
 		}
-		return out, nil
+		return nil, nil
 	}
 	rows, err := s.sql.Query(fmt.Sprintf(`%s %s %s %s`,
-		`SELECT node_id, 1.0 FROM nodes`,
+		`SELECT id, 1.0 FROM nodes`,
 		`WHERE type = ?`,
 		`AND page_id = ?`,
 		`ORDER BY name LIMIT ?`), opts.Type, opts.PageID, opts.limit())

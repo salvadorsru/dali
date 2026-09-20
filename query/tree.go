@@ -2,11 +2,13 @@ package query
 
 import (
 	"database/sql"
+	"encoding/json"
+	"strings"
 
 	"github.com/salvadorsru/dali/model"
 )
 
-const nodeColumns = `id, page_id, parent_id, type, name, position, visible, opacity, x, y, width, height, text, font_family, font_style, font_size, component_id`
+const nodeColumns = `id, page_id, parent_id, type, name, position, visible, opacity, x, y, width, height, text, font_family, font_style, font_size, text_align, text_align_v, line_height, letter_spacing, decoration, rotation, clip_content, component_id, runs, path, props`
 
 type scanner interface {
 	Scan(dest ...any) error
@@ -14,17 +16,46 @@ type scanner interface {
 
 func scanNode(sc scanner) (*model.Node, error) {
 	n := &model.Node{}
-	var visible int
+	var visible, clip int
+	var runs, props string
 	err := sc.Scan(
 		&n.ID, &n.PageID, &n.ParentID, &n.Type, &n.Name, &n.Position,
 		&visible, &n.Opacity, &n.X, &n.Y, &n.Width, &n.Height,
-		&n.Text, &n.FontFamily, &n.FontStyle, &n.FontSize, &n.ComponentID,
+		&n.Text, &n.FontFamily, &n.FontStyle, &n.FontSize,
+		&n.TextAlign, &n.TextAlignV, &n.LineHeight, &n.LetterSpacing,
+		&n.Decoration, &n.Rotation, &clip, &n.ComponentID,
+		&runs, &n.Path, &props,
 	)
 	if err != nil {
 		return nil, err
 	}
 	n.Visible = visible != 0
+	n.ClipContent = clip != 0
+	n.Runs = parseRuns(runs)
+	n.Props = parseProps(props)
 	return n, nil
+}
+
+func parseRuns(raw string) []model.TextRun {
+	if raw == "" {
+		return nil
+	}
+	var out []model.TextRun
+	if json.Unmarshal([]byte(raw), &out) == nil {
+		return out
+	}
+	return nil
+}
+
+func parseProps(raw string) []model.PropOverride {
+	if raw == "" {
+		return nil
+	}
+	var out []model.PropOverride
+	if json.Unmarshal([]byte(raw), &out) == nil {
+		return out
+	}
+	return nil
 }
 
 func (s *Service) queryNodes(where string, args ...any) ([]*model.Node, error) {
@@ -127,4 +158,77 @@ func (s *Service) Descendants(id string) ([]*model.Node, error) {
 		out = append(out, n)
 	}
 	return out, rows.Err()
+}
+
+// SubtreeItem is a node in a rooted subtree with its tree depth relative to
+// the root (direct children of the root have depth 1; the root itself is
+// excluded from the result).
+type SubtreeItem struct {
+	Node  *model.Node
+	Depth int
+}
+
+// Subtree returns the descendants of a node in pre-order (parent before
+// children, siblings by document order). maxDepth of 0 walks the whole
+// subtree; otherwise traversal stops before depth maxDepth.
+func (s *Service) Subtree(id string, maxDepth int) ([]SubtreeItem, error) {
+	nodeCols := "n." + strings.ReplaceAll(nodeColumns, ", ", ", n.")
+	selectNode := "SELECT " + nodeCols + ", d.depth FROM nodes n JOIN d ON n.id = d.id"
+	var q string
+	var args []any
+	if maxDepth > 0 {
+		q = `WITH RECURSIVE d(id, depth) AS (
+			SELECT ?, 0
+			UNION ALL
+			SELECT n.id, d.depth + 1 FROM nodes n JOIN d ON n.parent_id = d.id
+			WHERE d.depth < ?
+		)
+		` + selectNode + ` WHERE d.id <> ? ORDER BY d.depth, n.position, n.id`
+		args = []any{id, maxDepth, id}
+	} else {
+		q = `WITH RECURSIVE d(id, depth) AS (
+			SELECT ?, 0
+			UNION ALL
+			SELECT n.id, d.depth + 1 FROM nodes n JOIN d ON n.parent_id = d.id
+		)
+		` + selectNode + ` WHERE d.id <> ? ORDER BY d.depth, n.position, n.id`
+		args = []any{id, id}
+	}
+	rows, err := s.sql.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []SubtreeItem
+	for rows.Next() {
+		n, depth, err := scanNodeDepth(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, SubtreeItem{Node: n, Depth: depth})
+	}
+	return out, rows.Err()
+}
+
+// scanNodeDepth scans a node row plus a trailing depth column.
+func scanNodeDepth(rows *sql.Rows) (*model.Node, int, error) {
+	n := &model.Node{}
+	var visible, clip, depth int
+	var runs, props string
+	err := rows.Scan(
+		&n.ID, &n.PageID, &n.ParentID, &n.Type, &n.Name, &n.Position,
+		&visible, &n.Opacity, &n.X, &n.Y, &n.Width, &n.Height,
+		&n.Text, &n.FontFamily, &n.FontStyle, &n.FontSize,
+		&n.TextAlign, &n.TextAlignV, &n.LineHeight, &n.LetterSpacing,
+		&n.Decoration, &n.Rotation, &clip, &n.ComponentID,
+		&runs, &n.Path, &props, &depth,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	n.Visible = visible != 0
+	n.ClipContent = clip != 0
+	n.Runs = parseRuns(runs)
+	n.Props = parseProps(props)
+	return n, depth, nil
 }

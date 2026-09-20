@@ -15,9 +15,9 @@ type Result struct {
 	Path      string
 	Score     float64
 	Distance  float64
-	Parent    *NodeRef   `json:"parent,omitempty"`
-	Children  []NodeRef  `json:"children,omitempty"`
-	Ancestors []NodeRef  `json:"ancestors,omitempty"`
+	Parent    *NodeRef  `json:"parent,omitempty"`
+	Children  []NodeRef `json:"children,omitempty"`
+	Ancestors []NodeRef `json:"ancestors,omitempty"`
 }
 
 // NodeRef is a lightweight reference to a node used for contextual fields so a
