@@ -364,16 +364,23 @@ server over stdio. Tool names are prefixed with the server name in clients, so
 | --- | --- | --- |
 | `search_figma` | `file?`, `query`, `limit?`, `context?`, `max_children?` | Full-text search, with optional contextual results. |
 | `semantic_search_figma` | `file?`, `query`, `limit?`, `type?`, `page?` | Semantic (vector) search; auto-indexes missing embeddings. |
+| `hybrid_search_figma` | `file?`, `query`, `limit?`, `type?`, `page?`, `context?`, `max_children?` | Fusion of full-text, semantic and structural search (RRF). |
+| `query_figma` | `file?`, `query`, `limit?` | Structural expressions, e.g. `type=FRAME`, `name~"card"`, `children("Header")`. |
 | `get_node` | `file?`, `id` | Get one node by id. |
 | `get_context` | `file?`, `id` | Path, parent, children, component, styles, assets. |
 | `get_children` | `file?`, `id` | Direct children. |
 | `get_descendants` | `file?`, `id`, `depth?` | Whole subtree with depth, styles and images (0 = full). |
 | `get_parent` | `file?`, `id` | Parent node. |
 | `find_components` | `file?`, `name?` | List components, optionally filtered by name substring. |
+| `find_instances` | `file?`, `name?` | List component instances, optionally filtered by name substring. |
 | `find_assets` | `file?`, `name?` | List image assets, optionally filtered by name substring. |
+| `get_image` | `file?`, `hash?`, `name?` | One image asset as base64 data, looked up by hash or name. |
+| `get_fonts` | `file?`, `name?` | List fonts used by text nodes, ordered by usage count. |
 | `get_styles` | `file?`, `name?` | List style definitions, optionally filtered by name substring. |
 | `find_text` | `file?`, `query`, `limit?` | Search text content of TEXT nodes. |
 | `variables` | `file?`, `name?` | List design tokens (variables) with values per mode. |
+| `get_stats` | `file?` | Document summary: node counts by type, page and node totals. |
+| `list_pages` | `file?`, `name?` | List pages (canvases) in document order. |
 | `list_figs` | | List `.fig`/`.deck` files in the current directory. |
 
 Every tool accepts an optional `file` argument.
