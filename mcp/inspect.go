@@ -32,6 +32,7 @@ func (h *handlers) getNode(ctx context.Context, req *mcp.CallToolRequest, in idI
 	if view.Styles, err = svc.StylesOf(in.ID); err != nil {
 		return nil, NodeView{}, err
 	}
+	view.Node.Layout = layoutOf(view.Styles)
 	return nil, view, nil
 }
 
@@ -61,6 +62,7 @@ func (h *handlers) getContext(ctx context.Context, req *mcp.CallToolRequest, in 
 		Styles:   c.Styles,
 		Assets:   c.Assets,
 	}
+	view.Node.Layout = layoutOf(view.Styles)
 	for _, p := range c.Path {
 		view.Path = append(view.Path, toRef(p))
 	}
@@ -164,11 +166,15 @@ func SubtreeOf(svc *query.Service, id string, maxDepth int) (SubtreeResult, erro
 		view := SubtreeView{Node: toRef(it.Node), Depth: it.Depth}
 		if s := sby[it.Node.ID]; len(s) > 0 {
 			view.Styles = s
+			view.Node.Layout = layoutOf(s)
 		}
 		if a := aby[it.Node.ID]; len(a) > 0 {
 			view.Images = a
 		}
 		out.Descendants = append(out.Descendants, view)
+	}
+	if rootStyles, err := svc.StylesOf(id); err == nil {
+		out.Root.Layout = layoutOf(rootStyles)
 	}
 	return out, nil
 }

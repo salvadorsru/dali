@@ -1,6 +1,8 @@
 package mcp
 
 import (
+	"strings"
+
 	"github.com/salvadorsru/dali/model"
 )
 
@@ -33,9 +35,10 @@ type NodeRef struct {
 	Rotation      float64 `json:"rotation,omitempty" jsonschema:"rotation in degrees"`
 	ClipContent   bool    `json:"clip_content,omitempty" jsonschema:"children clipped to bounds"`
 
-	Path  string               `json:"path,omitempty" jsonschema:"SVG path geometry for vector shapes"`
-	Runs  []model.TextRun      `json:"runs,omitempty" jsonschema:"styled text runs spanning the text"`
-	Props []model.PropOverride `json:"props,omitempty" jsonschema:"component override bindings on instances"`
+	Path   string               `json:"path,omitempty" jsonschema:"SVG path geometry for vector shapes"`
+	Runs   []model.TextRun      `json:"runs,omitempty" jsonschema:"styled text runs spanning the text"`
+	Props  []model.PropOverride `json:"props,omitempty" jsonschema:"component override bindings on instances"`
+	Layout string               `json:"layout,omitempty" jsonschema:"resolved layout style: direction, gap, padding, radius"`
 }
 
 func toRef(n *model.Node) NodeRef {
@@ -63,6 +66,17 @@ func toRefs(nodes []*model.Node) []NodeRef {
 		out = append(out, toRef(n))
 	}
 	return out
+}
+
+// layoutOf returns the resolved LAYOUT style summary applied to a node, for
+// building flex components without re-reading raw auto-layout payloads.
+func layoutOf(styles []model.Style) string {
+	for _, st := range styles {
+		if strings.EqualFold(st.Kind, "LAYOUT") && st.Summary != "" {
+			return st.Summary
+		}
+	}
+	return ""
 }
 
 // filterInput is shared by every tool that lists a collection with an optional

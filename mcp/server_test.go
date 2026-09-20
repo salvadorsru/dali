@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/salvadorsru/dali/model"
 )
 
 const sample = "../woments.fig"
@@ -177,6 +179,118 @@ func TestNewTools(t *testing.T) {
 		if img.Data == "" || img.MIME == "" {
 			t.Fatalf("get_image = %+v", img)
 		}
+	}
+}
+
+// TestTokens exercises the design-token and component-contract tools.
+func TestTokens(t *testing.T) {
+	if _, err := os.Stat(sample); err != nil {
+		t.Skip("sample fig not present")
+	}
+
+	ctx := context.Background()
+	ct, st := mcp.NewInMemoryTransports()
+	srv, h := newServer(sample)
+	defer h.close()
+	go srv.Run(ctx, st)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+	session, err := client.Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+
+	call := func(name string, args map[string]any) string {
+		res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if res.IsError || len(res.Content) == 0 {
+			t.Fatalf("%s returned no content: %+v body=%q", name, res, textOf(res))
+		}
+		return textOf(res)
+	}
+
+	body := call("get_tokens", map[string]any{"kind": "color"})
+	var toks tokensOutput
+	if err := json.Unmarshal([]byte(body), &toks); err != nil {
+		t.Fatalf("get_tokens parse: %v", err)
+	}
+	if len(toks.Colors) == 0 || toks.Colors[0].Usage == 0 || len(toks.ColorVars) == 0 {
+		t.Fatalf("get_tokens color = %+v", toks)
+	}
+
+	body = call("get_styles", map[string]any{"kind": "LAYOUT", "details": false})
+	var styles stylesOutput
+	if err := json.Unmarshal([]byte(body), &styles); err != nil {
+		t.Fatalf("get_styles parse: %v", err)
+	}
+	if len(styles.Styles) == 0 {
+		t.Fatalf("get_styles LAYOUT empty")
+	}
+	for _, d := range styles.Styles {
+		if d.Kind != "LAYOUT" {
+			t.Fatalf("kind filter leaked %q", d.Kind)
+		}
+		if d.Raw != "" {
+			t.Fatalf("details=false kept raw for %s", d.Key)
+		}
+	}
+
+	// Layout is surfaced on node views.
+	body = call("find_components", map[string]any{"name": ""})
+	var comps componentsOutput
+	if err := json.Unmarshal([]byte(body), &comps); err != nil {
+		t.Fatalf("find_components parse: %v", err)
+	}
+	if len(comps.Components) == 0 {
+		t.Fatalf("find_components empty")
+	}
+	cid := comps.Components[0].ID
+
+	body = call("get_node", map[string]any{"id": cid})
+	var nv NodeView
+	if err := json.Unmarshal([]byte(body), &nv); err != nil {
+		t.Fatalf("get_node parse: %v", err)
+	}
+	if nv.Node.ID != cid {
+		t.Fatalf("get_node = %+v", nv.Node)
+	}
+
+	// Placements and component contract.
+	body = call("get_usages", map[string]any{"id": cid})
+	var uses usagesOutput
+	if err := json.Unmarshal([]byte(body), &uses); err != nil {
+		t.Fatalf("get_usages parse: %v", err)
+	}
+	if uses.Component.ID != cid {
+		t.Fatalf("get_usages component = %+v", uses.Component)
+	}
+
+	body = call("get_component", map[string]any{"id": cid})
+	var comp componentOutput
+	if err := json.Unmarshal([]byte(body), &comp); err != nil {
+		t.Fatalf("get_component parse: %v", err)
+	}
+	if comp.Node.ID != cid || comp.Type == "" {
+		t.Fatalf("get_component = %+v", comp)
+	}
+}
+
+// TestLayoutOf verifies layout extraction is case-insensitive and picks the
+// LAYOUT style summary.
+func TestLayoutOf(t *testing.T) {
+	got := layoutOf([]model.Style{
+		{Kind: "FILL", Summary: "#4A4840"},
+		{Kind: "layout", Summary: "layout vertical · gap 12"},
+		{Kind: "LAYOUT", Summary: "layout horizontal · gap 10"},
+	})
+	if got != "layout vertical · gap 12" {
+		t.Fatalf("layoutOf = %q", got)
+	}
+	if layoutOf(nil) != "" {
+		t.Fatal("layoutOf(nil) not empty")
 	}
 }
 

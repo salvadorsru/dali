@@ -73,7 +73,17 @@ type stylesOutput struct {
 	Styles []model.StyleDef `json:"styles"`
 }
 
-func (h *handlers) getStyles(ctx context.Context, req *mcp.CallToolRequest, in filterInput) (*mcp.CallToolResult, stylesOutput, error) {
+// styleInput filters style definitions. A kind filter keeps only one family
+// (FILL, STROKE, TEXT, EFFECT, GRID, LAYOUT); details=false drops the raw
+// authored payload for a compact listing.
+type styleInput struct {
+	File    string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
+	Name    string `json:"name,omitempty" jsonschema:"optional style name substring filter"`
+	Kind    string `json:"kind,omitempty" jsonschema:"optional style kind filter: FILL, STROKE, TEXT, EFFECT, GRID, LAYOUT"`
+	Details *bool  `json:"details,omitempty" jsonschema:"include the authored raw JSON; set false for a compact listing (default true)"`
+}
+
+func (h *handlers) getStyles(ctx context.Context, req *mcp.CallToolRequest, in styleInput) (*mcp.CallToolResult, stylesOutput, error) {
 	svc, err := h.service(in.File, newNotifier(ctx, req))
 	if err != nil {
 		return nil, stylesOutput{}, err
@@ -82,16 +92,24 @@ func (h *handlers) getStyles(ctx context.Context, req *mcp.CallToolRequest, in f
 	if err != nil {
 		return nil, stylesOutput{}, err
 	}
-	if in.Name != "" {
-		var filtered []model.StyleDef
-		for _, d := range defs {
-			if containsFold(d.Name, in.Name) {
-				filtered = append(filtered, d)
-			}
-		}
-		defs = filtered
+	details := true
+	if in.Details != nil {
+		details = *in.Details
 	}
-	return nil, stylesOutput{Styles: defs}, nil
+	var filtered []model.StyleDef
+	for _, d := range defs {
+		if in.Kind != "" && !strings.EqualFold(d.Kind, in.Kind) {
+			continue
+		}
+		if in.Name != "" && !containsFold(d.Name, in.Name) {
+			continue
+		}
+		if !details {
+			d.Raw = ""
+		}
+		filtered = append(filtered, d)
+	}
+	return nil, stylesOutput{Styles: filtered}, nil
 }
 
 type variablesOutput struct {
