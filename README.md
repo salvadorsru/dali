@@ -131,7 +131,7 @@ download without prompting.
 | Command | Description |
 | --- | --- |
 | `inspect` | Document counts (pages, nodes, components, assets, fonts, styles). |
-| `search <query>` | Full-text search (FTS5). |
+| `search <query> [flags]` | Full-text search (FTS5). |
 | `semantic-search <query> [flags]` | Vector search, with optional filters. |
 | `node <id>` | Show one node. |
 | `context <id>` | Path, parent, children, component, styles, assets. |
@@ -152,6 +152,14 @@ download without prompting.
 | `version` | Print version and build info. |
 
 ### Command flags
+
+`search`:
+
+| Flag | Description |
+| --- | --- |
+| `--limit N` | Max results (default 50). |
+| `--hybrid` | Fuse full-text and vector results with Reciprocal Rank Fusion. |
+| `--yes` | Allow the model download without prompting. |
 
 `semantic-search`:
 
@@ -354,15 +362,18 @@ server over stdio. Tool names are prefixed with the server name in clients, so
 
 | Tool | Arguments | Description |
 | --- | --- | --- |
-| `search_figma` | `file?`, `query`, `limit?` | Full-text search. |
+| `search_figma` | `file?`, `query`, `limit?`, `context?`, `max_children?` | Full-text search, with optional contextual results. |
 | `semantic_search_figma` | `file?`, `query`, `limit?`, `type?`, `page?` | Semantic (vector) search; auto-indexes missing embeddings. |
 | `get_node` | `file?`, `id` | Get one node by id. |
 | `get_context` | `file?`, `id` | Path, parent, children, component, styles, assets. |
 | `get_children` | `file?`, `id` | Direct children. |
+| `get_descendants` | `file?`, `id`, `depth?` | Whole subtree with depth, styles and images (0 = full). |
 | `get_parent` | `file?`, `id` | Parent node. |
 | `find_components` | `file?`, `name?` | List components, optionally filtered by name substring. |
 | `find_assets` | `file?`, `name?` | List image assets, optionally filtered by name substring. |
+| `get_styles` | `file?`, `name?` | List style definitions, optionally filtered by name substring. |
 | `find_text` | `file?`, `query`, `limit?` | Search text content of TEXT nodes. |
+| `variables` | `file?`, `name?` | List design tokens (variables) with values per mode. |
 | `list_figs` | | List `.fig`/`.deck` files in the current directory. |
 
 Every tool accepts an optional `file` argument.
