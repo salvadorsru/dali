@@ -15,6 +15,7 @@ type Service struct {
 	db      *index.DB
 	sql     *sql.DB
 	rebuilt bool
+	ranker  Ranker
 }
 
 func Open(figPath string) (*Service, error) {
@@ -39,7 +40,7 @@ func OpenNotify(figPath string, force bool, building func()) (*Service, error) {
 		db.Close()
 		return nil, err
 	}
-	return &Service{db: db, sql: db.SQL(), rebuilt: rebuilt}, nil
+	return &Service{db: db, sql: db.SQL(), rebuilt: rebuilt, ranker: RRF{}}, nil
 }
 
 func (s *Service) Close() error { return s.db.Close() }
