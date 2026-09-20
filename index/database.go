@@ -3,22 +3,46 @@ package index
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite/vec"
 )
 
-const SchemaVersion = 2
+const SchemaVersion = 3
 
 type DB struct {
 	sql *sql.DB
 }
 
 func Open(path string) (*DB, error) {
+	if dir := filepath.Dir(path); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return nil, err
+		}
+	}
 	sqlDB, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, err
 	}
 	sqlDB.SetMaxOpenConns(1)
+	if _, err := sqlDB.Exec(`PRAGMA busy_timeout = 15000`); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
+	if _, err := sqlDB.Exec(`PRAGMA journal_mode = WAL`); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
+	for _, pragma := range []string{
+		`PRAGMA synchronous = NORMAL`,
+		`PRAGMA temp_store = MEMORY`,
+		`PRAGMA cache_size = -65536`,
+		`PRAGMA mmap_size = 268435456`,
+	} {
+		_, _ = sqlDB.Exec(pragma)
+	}
 	db := &DB{sql: sqlDB}
 	if err := db.migrate(); err != nil {
 		sqlDB.Close()
@@ -106,6 +130,14 @@ func (db *DB) migrate() error {
 			content,
 			tokenize = 'unicode61'
 		)`,
+		`CREATE TABLE IF NOT EXISTS embeddings (
+			node_id TEXT PRIMARY KEY,
+			model TEXT,
+			dimensions INTEGER,
+			content_hash TEXT,
+			generator_version INTEGER,
+			updated_at INTEGER
+		)`,
 	}
 	for _, s := range stmts {
 		if _, err := db.sql.Exec(s); err != nil {
@@ -129,4 +161,15 @@ func (db *DB) SetMeta(key, value string) error {
 		`INSERT INTO meta (key, value) VALUES (?, ?)
 		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`, key, value)
 	return err
+}
+
+func (db *DB) ClearEmbeddings() error {
+	_, err := db.sql.Exec(`DELETE FROM embeddings`)
+	return err
+}
+
+func (db *DB) EmbeddingCount() (int, error) {
+	var n int
+	err := db.sql.QueryRow(`SELECT COUNT(*) FROM embeddings`).Scan(&n)
+	return n, err
 }

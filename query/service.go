@@ -8,49 +8,69 @@ import (
 	"github.com/salvadorsru/dali/index"
 	"github.com/salvadorsru/dali/model"
 	"github.com/salvadorsru/dali/parser"
+	"github.com/salvadorsru/dali/workspace"
 )
 
 type Service struct {
-	db  *index.DB
-	sql *sql.DB
+	db      *index.DB
+	sql     *sql.DB
+	rebuilt bool
 }
 
 func Open(figPath string) (*Service, error) {
-	db, err := index.Open(figPath + ".db")
+	return OpenWith(figPath, false)
+}
+
+// OpenWith opens the index. When force is true the structural index is rebuilt
+// even if the source file is unchanged.
+func OpenWith(figPath string, force bool) (*Service, error) {
+	db, err := index.Open(workspace.DB(figPath))
 	if err != nil {
 		return nil, err
 	}
-	if err := ensure(db, figPath); err != nil {
+	rebuilt, err := ensure(db, figPath, force)
+	if err != nil {
 		db.Close()
 		return nil, err
 	}
-	return &Service{db: db, sql: db.SQL()}, nil
+	return &Service{db: db, sql: db.SQL(), rebuilt: rebuilt}, nil
 }
 
 func (s *Service) Close() error { return s.db.Close() }
 
-func ensure(db *index.DB, figPath string) error {
+// Rebuilt reports whether the structural index was rebuilt by the last Open.
+func (s *Service) Rebuilt() bool { return s.rebuilt }
+
+// DB exposes the underlying index for indexing passes (embeddings).
+func (s *Service) DB() *index.DB { return s.db }
+
+func ensure(db *index.DB, figPath string, force bool) (bool, error) {
 	want, err := sourceKey(figPath)
 	if err != nil {
-		return err
+		return false, err
 	}
-	got, err := db.Meta("source")
-	if err != nil {
-		return err
-	}
-	if got == want {
-		return nil
+	if !force {
+		got, err := db.Meta("source")
+		if err != nil {
+			return false, err
+		}
+		if got == want {
+			return false, nil
+		}
 	}
 	f, err := parser.Open(figPath)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer f.Close()
 	doc := model.Build(f.NodeChanges())
 	if err := db.Write(doc); err != nil {
-		return err
+		return false, err
 	}
-	return db.SetMeta("source", want)
+	if err := db.SetMeta("source", want); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // ponytail: source key uses size+mtime, not content hash. Add sha256 if
