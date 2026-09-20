@@ -39,6 +39,7 @@ var commands = map[string]func([]string) error{
 	"lint":            cmdLint,
 	"analyze":         cmdAnalyze,
 	"export":          cmdExport,
+	"generate":        cmdGenerate,
 	"mcp":             cmdMCP,
 	"mcp-config":      cmdMCPConfig,
 	"serve":           cmdServe,
@@ -217,6 +218,9 @@ Commands:
   index [--embeddings]       Build the structural index; --embeddings adds the vector index
                               (--force rebuilds even if up to date)
   extract-assets              Write images to <base>.assets/images
+  generate [--framework F]    Generate code from components (--framework react|vue|html,
+                              --styling tailwind|css-vars, --out DIR, --component ID,
+                              --ts/--no-ts, --tokens css|ts|style-dict|figma)
   mcp                         Run the MCP server over stdio
   mcp-config [--src FILE]     Write MCP config per editor (--opencode, --cursor,
                               --claude, --vscode, --cline, --roo, --windsurf;
@@ -255,6 +259,8 @@ Examples:
   dali design.fig lint --preset accessibility
   dali design.fig analyze overlaps
   dali design.fig export html --output design.html
+  dali design.fig generate --framework react --styling tailwind --out ./src/components
+  dali design.fig generate --framework vue --styling css-vars --out ./components --tokens ts
   dali inspect                 # uses ./design.fig
   dali . index                 # indexes the .fig in this directory
 `)

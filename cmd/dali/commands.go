@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/salvadorsru/dali/assets"
+	"github.com/salvadorsru/dali/codegen"
+	"github.com/salvadorsru/dali/codegen/ir"
 	"github.com/salvadorsru/dali/embed"
 	"github.com/salvadorsru/dali/mcp"
 	"github.com/salvadorsru/dali/model"
@@ -419,6 +421,46 @@ func cmdUsages(args []string) error {
 	fmt.Printf("%s %s  %s\n", output.ID(n.ID), output.Type(string(n.Type)), output.Bold(n.Name))
 	fmt.Printf("%s %d\n", output.Label("instances:"), len(places))
 	return printPlacements(svc, places)
+}
+
+func cmdGenerate(args []string) error {
+	fs := flag.NewFlagSet("generate", flag.ContinueOnError)
+	framework := fs.String("framework", "react", "target framework: react, vue, html")
+	styling := fs.String("styling", "tailwind", "styling approach: tailwind, css-vars, css")
+	outputDir := fs.String("out", "./generated", "output directory")
+	component := fs.String("component", "", "component ID to generate (default: all)")
+	typescript := fs.Bool("ts", true, "generate TypeScript (vs JavaScript)")
+	tokensFormat := fs.String("tokens", "css", "tokens format: css, ts, style-dict, figma")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	svc, err := open(figFile)
+	if err != nil {
+		return err
+	}
+	defer svc.Close()
+
+	config := ir.DefaultConfig()
+	config.Framework = *framework
+	config.Styling = *styling
+	config.OutputDir = *outputDir
+	config.UseTypeScript = *typescript
+
+	// If component specified, generate just that one
+	if *component != "" {
+		return codegen.GenerateComponents(svc, []string{*component}, config)
+	}
+
+	// Generate tokens if requested
+	if *tokensFormat != "" {
+		if err := codegen.GenerateTokens(svc, config, *tokensFormat); err != nil {
+			return fmt.Errorf("generate tokens: %w", err)
+		}
+	}
+
+	// Generate all components
+	return codegen.GenerateAllComponents(svc, config)
 }
 
 func cmdDependents(args []string) error {

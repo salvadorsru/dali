@@ -569,6 +569,12 @@ func styleSummary(raw map[string]any, kind string) string {
 // Fills returns the node's direct fill paints.
 func (n *Node) Fills() []any { return paintsOf(n, "FILL") }
 
+// Strokes returns the node's direct stroke paints.
+func (n *Node) Strokes() []any { return paintsOf(n, "STROKE") }
+
+// Effects returns the node's effect paints.
+func (n *Node) Effects() []any { return asSlice(n.raw["effects"]) }
+
 // StrokeHex returns the first visible solid stroke color, if any.
 func (n *Node) StrokeHex() (string, bool) {
 	for _, p := range paintsOf(n, "STROKE") {

@@ -1,0 +1,157 @@
+package util
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/salvadorsru/dali/codegen/ir"
+	"github.com/salvadorsru/dali/model"
+)
+
+func mkNode(local int32, typ, name string, parent map[string]any, position string) map[string]any {
+	m := map[string]any{
+		"guid":  map[string]any{"sessionID": int32(0), "localID": local},
+		"phase": "CREATED",
+		"type":  typ,
+		"name":  name,
+	}
+	if parent != nil {
+		m["parentIndex"] = map[string]any{"guid": parent, "position": position}
+	}
+	return m
+}
+
+func g(session, local int32) map[string]any {
+	return map[string]any{"sessionID": session, "localID": local}
+}
+
+func build(nodes ...map[string]any) *model.Document {
+	items := make([]any, 0, len(nodes))
+	for _, n := range nodes {
+		items = append(items, n)
+	}
+	return model.Build(items, nil)
+}
+
+func node(t *testing.T, local int32, typ, name string, props map[string]any) *model.Node {
+	t.Helper()
+	m := mkNode(local, typ, name, g(0, local-1), "a")
+	delete(m, "parentIndex")
+	for k, v := range props {
+		m[k] = v
+	}
+	doc := build(mkNode(0, "DOCUMENT", "Doc", nil, ""), m)
+	n, ok := doc.Node("0:" + itoa(local))
+	if !ok {
+		t.Fatalf("node %d not found", local)
+	}
+	return n
+}
+
+func itoa(v int32) string {
+	return strings.TrimLeft(strings.Repeat(" ", 0)+fmtItoa(v), " ")
+}
+
+func fmtItoa(v int32) string {
+	digits := []byte{}
+	if v == 0 {
+		return "0"
+	}
+	for v > 0 {
+		digits = append([]byte{byte('0' + v%10)}, digits...)
+		v /= 10
+	}
+	return string(digits)
+}
+
+func TestSanitizeComponentName(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{"Button", "Button"},
+		{"Button/Primary", "ButtonPrimary"},
+		{"1-Button", "Component1Button"},
+		{"Icon/Social network/Facebook", "IconSocialNetworkFacebook"},
+		{"", "Component"},
+	}
+	for _, tc := range tests {
+		if got := SanitizeComponentName(tc.in); got != tc.want {
+			t.Errorf("SanitizeComponentName(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestSanitizePropName(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{"color", "color"},
+		{"Eye Height", "eyeHeight"},
+		{"1st", "prop1st"},
+		{"", "prop"},
+	}
+	for _, tc := range tests {
+		if got := SanitizePropName(tc.in); got != tc.want {
+			t.Errorf("SanitizePropName(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestTranslateLayout(t *testing.T) {
+	n := node(t, 2, "FRAME", "Row", map[string]any{
+		"layoutMode":   "HORIZONTAL",
+		"itemSpacing":  float64(8),
+		"paddingLeft":  float64(16),
+		"paddingRight": float64(16),
+	})
+	spec := TranslateLayout(n)
+	if spec.Mode != "FLEX" || spec.Direction != "row" {
+		t.Fatalf("mode/direction = %s/%s", spec.Mode, spec.Direction)
+	}
+	if spec.Gap != 8 {
+		t.Errorf("gap = %g, want 8", spec.Gap)
+	}
+	if spec.Padding.Left != 16 || spec.Padding.Right != 16 {
+		t.Errorf("padding = %+v", spec.Padding)
+	}
+}
+
+func TestTranslateLayoutStatic(t *testing.T) {
+	n := node(t, 2, "FRAME", "Static", nil)
+	spec := TranslateLayout(n)
+	if spec.Mode != "NONE" {
+		t.Errorf("mode = %s, want NONE", spec.Mode)
+	}
+}
+
+func TestTranslateStylesBackground(t *testing.T) {
+	n := node(t, 2, "FRAME", "Card", map[string]any{
+		"fillPaints": []any{map[string]any{
+			"type":  "SOLID",
+			"color": map[string]any{"r": float64(1), "g": float64(0), "b": float64(0), "a": float64(1)},
+		}},
+	})
+	spec := TranslateStyles(n)
+	if spec.Background.Color != "#FF0000" {
+		t.Errorf("background = %q, want #FF0000", spec.Background.Color)
+	}
+	if len(spec.Fills) != 1 {
+		t.Errorf("fills = %d, want 1", len(spec.Fills))
+	}
+}
+
+func TestStyleToTailwindRotation(t *testing.T) {
+	classes := StyleToTailwind(ir.StyleSpec{Rotation: 180})
+	if !strings.Contains(classes, "rotate-[180deg]") {
+		t.Errorf("classes = %q, want rotate-[180deg]", classes)
+	}
+}
+
+func TestLayoutToTailwindHorizontal(t *testing.T) {
+	classes := LayoutToTailwind(ir.LayoutSpec{Mode: "FLEX", Direction: "row", Gap: 8})
+	if !strings.Contains(classes, "flex") {
+		t.Errorf("classes = %q, want flex", classes)
+	}
+	if !strings.Contains(classes, "flex-row") {
+		t.Errorf("classes = %q, want flex-row", classes)
+	}
+	if !strings.Contains(classes, "gap-[8px]") {
+		t.Errorf("classes = %q, want gap-[8px]", classes)
+	}
+}
