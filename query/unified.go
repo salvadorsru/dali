@@ -92,6 +92,9 @@ func (s *Service) UnifiedSearch(ctx context.Context, emb embed.Embedder, opts Un
 	if err != nil {
 		return nil, err
 	}
+	if opts.Type != "" {
+		text = ofType(text, opts.Type)
+	}
 	groups = append(groups, text)
 
 	if emb != nil && (opts.Mode == ModeSemantic || opts.Mode == ModeHybrid) {
@@ -141,6 +144,18 @@ func (s *Service) UnifiedSearch(ctx context.Context, emb embed.Embedder, opts Un
 		ranked = ranked[:limit]
 	}
 	return ranked, nil
+}
+
+// ofType keeps only results of the given node type, extending a type filter to
+// full-text candidates that have no type column of their own.
+func ofType(rs []Result, t string) []Result {
+	out := rs[:0]
+	for _, r := range rs {
+		if r.Type == t {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 // isStructuralExpr reports whether the query text looks like a structural
