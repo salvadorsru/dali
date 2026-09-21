@@ -28,6 +28,9 @@ the source of truth; everything else is a rebuildable local index.
 - Structural, full-text (FTS5) and semantic (vector) search, plus hybrid fusion.
 - Incremental: only changed nodes are re-embedded.
 - MCP server for AI agents, serving many designs from one process.
+- Design linting and geometry analysis (spacing, clusters, overlaps).
+- SVG/HTML export of the document, a page or a subtree.
+- Component code generation: HTML + Tailwind plus design tokens.
 - Image asset extraction.
 - No CGO. SQLite and `sqlite-vec` are pure Go; embeddings use a managed
   `llama.cpp` binary downloaded on first use.
@@ -61,6 +64,7 @@ Binaries for Linux, macOS and Windows (amd64 and arm64) are on the
 dali design.fig inspect
 dali design.fig search "checkout"
 dali design.fig semantic-search "payment screen"
+dali design.fig generate --out ./components
 dali design.fig mcp-config --all
 ```
 
@@ -89,13 +93,15 @@ progress), `--no-color`.
 | `search <query>` | Full-text search (FTS5). `--limit`, `--hybrid`. |
 | `semantic-search <query>` | Vector search. `--limit`, `--type`, `--page`, `--hybrid`. |
 | `node <id>` / `context <id>` | Show one node / its surroundings. |
-| `children <id>` / `parent <id>` / `path <id>` | Tree navigation. |
-| `components` / `assets` / `fonts` | List components, image assets, fonts. |
+| `children <id>` / `parent <id>` / `path <id>` / `subtree <id>` | Tree navigation; `subtree` prints a whole subtree with depth, styles and images (`--depth`). |
+| `components` / `usages <id>` / `dependents <id>` | List components, where one is placed, and which screens depend on it. |
+| `assets` / `fonts` / `styles` / `variables` | List image assets, fonts in use, style definitions, design tokens. |
 | `query <expr>` | Structural query DSL (see grammar below). |
 | `xpath <expr>` | XPath subset over the tree (`/`, `//`, `*`, `@name=`, `@name~`, `contains()`). `--limit`. |
 | `lint [--preset P]` | Design + accessibility checks (`recommended`, `strict`, `accessibility`). |
 | `analyze <kind>` | Geometry stats: `spacing`, `clusters`, `overlaps`. |
 | `export <svg\|html>` | Render pages or a node subtree; `--page`, `--root`, `--output`. |
+| `generate` | Generate HTML + Tailwind from components; `--out`, `--component`, `--tokens`. |
 | `index [--embeddings] [--force]` | Build the structural index; `--embeddings` adds the vector index. |
 | `extract-assets` | Write images to `<base>.assets/images`. |
 | `mcp` | Run the MCP server over stdio. |
@@ -104,8 +110,8 @@ progress), `--no-color`.
 | `clean` | Stop the server and delete the downloaded engine + model. |
 | `version` | Print version and build info. |
 
-`--yes` is accepted by `index` and `semantic-search` to allow the model download
-without prompting.
+`--yes` is accepted by `search`, `index` and `semantic-search` to allow the model
+download without prompting.
 
 ### Structural queries
 
@@ -116,14 +122,23 @@ without prompting.
 | `type=TEXT` | Exact node type (case-insensitive). |
 | `name="Component"` | Exact node name. |
 | `name~"button"` | Name substring (SQL `LIKE`). |
+| `text~"checkout"` | Text content substring. |
+| `font=Roboto` | Font family. |
+| `page="Checkout"` | Page by name or id. |
+| `component=1:2` | Instances of a component. |
+| `visible=true` | Visibility. |
+| `width=320` / `height>=100` | Numeric comparisons on `width`, `height`, `font_size` and `opacity` (`=`, `!=`, `>`, `>=`, `<`, `<=`). |
 | `descendants("Component")` | Every descendant of the node named `Component`. |
 | `ancestors("Component")` | Every ancestor of the node named `Component`. |
 | `children("Component")` | Direct children of the node named `Component`. |
 | `parent("Component")` | Parent of the node named `Component`. |
 
+Terms combine with `AND`:
+
 ```bash
 dali design.fig query 'type=TEXT'
 dali design.fig query 'name~"button"'
+dali design.fig query 'type=FRAME AND height>=100'
 dali design.fig query 'descendants("Component")'
 ```
 
@@ -197,6 +212,21 @@ dali design.fig export svg  --root 654:11617 --output card.svg
 Vector geometry, fills, corner radii, clipping, text and embedded images are
 included; raster formats are out of scope.
 
+## Component code generation
+
+`generate` translates components and component sets into HTML + Tailwind:
+
+```bash
+dali design.fig generate                              # all components
+dali design.fig generate --component 1:123 --out ./components
+dali design.fig generate --tokens css
+```
+
+Each component is written as a self-contained HTML file under `--out` (default
+`./generated`); text content is escaped, so strings like `-15%` stay valid.
+`--tokens` also exports design tokens as CSS variables (`css`), Style Dictionary
+JSON (`style-dict`) or Figma Tokens JSON (`figma`).
+
 ## Semantic search
 
 Embeddings come from an `embed.Embedder`. The default provider (`auto`)
@@ -212,9 +242,11 @@ configuration.
 | `remote` | Any OpenAI-compatible `/v1/embeddings` at `DALI_EMBED_URL`. |
 
 Key variables: `DALI_CACHE_DIR` (default `~/.cache/dali`), `DALI_LLAMA_URL`
-(reuse a running server), `DALI_LLAMA_MODEL`, `DALI_LLAMA_KEEP` (`0` stops the
-server after each command), `DALI_EMBED_URL`, `DALI_EMBED_MODEL`, and
-`DALI_EMBED_CONCURRENCY`. Full reference in [AGENTS.md](AGENTS.md).
+(reuse a running server), `DALI_LLAMA_MODEL`, `DALI_LLAMA_TAG` (pinned release),
+`DALI_LLAMA_PARALLEL` and `DALI_LLAMA_THREADS` (managed server slots/threads),
+`DALI_LLAMA_KEEP` (`0` stops the server after each command), `DALI_EMBED_URL`,
+`DALI_EMBED_MODEL`, `DALI_EMBED_BATCH` and `DALI_EMBED_CONCURRENCY`. Full
+reference in [AGENTS.md](AGENTS.md).
 
 ### Incremental indexing
 
@@ -247,12 +279,13 @@ fig passed to `dali mcp` and then to the single `.fig` in the working directory.
 | `search_figma` | Full-text search, with optional context. |
 | `semantic_search_figma` | Vector search; auto-indexes missing embeddings. |
 | `hybrid_search_figma` | Fusion of full-text, semantic and structural search (RRF). |
-| `query_figma` | Structural expressions or XPath, e.g. `type=FRAME`, `children("Header")`, `//FRAME[@name~"card"]`. |
+| `query_figma` | Structural expressions, e.g. `type=FRAME`, `name~"card"`, `children("Header")`, `width>=320`. |
+| `xpath_figma` | XPath subset over the tree, e.g. `//FRAME[@name~"card"]`, `/DOCUMENT/CANVAS`. |
 | `get_node` / `get_context` / `get_children` | Node inspection. |
 | `get_descendants` | Whole subtree with depth, styles and images. |
 | `get_parent` | Parent node. |
 | `find_components` / `find_instances` | List components / instances, optionally by name (empty results suggest nearby names). |
-| `find_assets` / `get_image` | List assets / fetch one as base64. |
+| `find_assets` / `get_image` / `extract_assets` | List assets / fetch one as base64 / write them to `<base>.assets/images`. |
 | `get_fonts` / `get_styles` | List fonts / styles, optionally filtered by name or kind. |
 | `get_tokens` | Aggregate tokens: colour palette, variables, fonts, text classes, layouts. |
 | `get_usages` / `get_component` | Component placements / codegen contract (variants, props). |
@@ -322,6 +355,9 @@ parser.Open ─► kiwi decode ─► model.Build ─► index.Write ─► quer
 | `query/` | All reads; owns SQL. |
 | `embed/` | `Embedder` interface, OpenAI-compatible client, managed llama.cpp. |
 | `semantic/` | Semantic text per node and the incremental embedding index. |
+| `quality/` | Design linting and geometry analysis (spacing, clusters, overlaps). |
+| `export/` | SVG/HTML rendering of the document tree. |
+| `codegen/` | HTML + Tailwind code generation and token export. |
 | `assets/` | Image extraction. |
 | `workspace/` | Path layout for the technical `.dali/` directory. |
 | `output/` | Table and JSON output. |
