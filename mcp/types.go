@@ -16,6 +16,7 @@ type NodeRef struct {
 	ParentID string  `json:"parent_id,omitempty" jsonschema:"id of the parent node"`
 	Text     string  `json:"text,omitempty" jsonschema:"text content for TEXT nodes"`
 	Page     string  `json:"page,omitempty" jsonschema:"page name"`
+	PageName string  `json:"page_name,omitempty" jsonschema:"page name for disambiguation"`
 	PagePath string  `json:"page_path,omitempty" jsonschema:"path from page to node"`
 	Score    float64 `json:"score,omitempty" jsonschema:"similarity score for semantic results"`
 

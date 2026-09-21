@@ -20,16 +20,19 @@ type sectionInput struct {
 }
 
 // SectionView is the one-shot inspection of a named block: the resolved node
-// with its structured styles, its place in the tree, and the text it contains.
+// with its structured styles, its place in the tree, the contained text, and
+// the full subtree so a section can be reconstructed without further calls.
 type SectionView struct {
-	Node     NodeRef          `json:"node"`
-	Path     []NodeRef        `json:"path,omitempty"`
-	Parent   *NodeRef         `json:"parent,omitempty"`
-	Children []NodeRef        `json:"children"`
-	Styles   []model.Style    `json:"styles"`
-	Images   []model.ImageRef `json:"images"`
-	Texts    []NodeRef        `json:"texts,omitempty"`
-	Matches  []string         `json:"matches,omitempty" jsonschema:"near-miss names when nothing resolved"`
+	Node         NodeRef          `json:"node"`
+	Path         []NodeRef        `json:"path,omitempty"`
+	Parent       *NodeRef         `json:"parent,omitempty"`
+	Children     []NodeRef        `json:"children"`
+	Styles       []model.Style    `json:"styles"`
+	Images       []model.ImageRef `json:"images"`
+	Texts        []NodeRef        `json:"texts,omitempty"`
+	Descendants  []SubtreeView    `json:"descendants,omitempty" jsonschema:"whole subtree with geometry, styles and images"`
+	Alternatives []NodeRef        `json:"alternatives,omitempty" jsonschema:"other layers matching the name, for disambiguation"`
+	Matches      []string         `json:"matches,omitempty" jsonschema:"near-miss names when nothing resolved"`
 }
 
 func (h *handlers) sectionFigma(ctx context.Context, req *mcp.CallToolRequest, in sectionInput) (*mcp.CallToolResult, SectionView, error) {
@@ -37,7 +40,7 @@ func (h *handlers) sectionFigma(ctx context.Context, req *mcp.CallToolRequest, i
 	if err != nil {
 		return nil, SectionView{}, err
 	}
-	node, matches, err := resolveSection(svc, in)
+	node, alternatives, matches, err := resolveSection(svc, in)
 	if err != nil {
 		return nil, SectionView{}, err
 	}
@@ -48,8 +51,9 @@ func (h *handlers) sectionFigma(ctx context.Context, req *mcp.CallToolRequest, i
 	if err != nil || c == nil || c.Node == nil {
 		return nil, SectionView{}, err
 	}
+	pages := pageNames(svc)
 	view := SectionView{
-		Node:     toRef(c.Node),
+		Node:     pageRef(c.Node, pages),
 		Children: toRefs(c.Children),
 		Styles:   c.Styles,
 		Images:   c.Assets,
@@ -59,30 +63,58 @@ func (h *handlers) sectionFigma(ctx context.Context, req *mcp.CallToolRequest, i
 		view.Path = append(view.Path, toRef(p))
 	}
 	if c.Parent != nil {
-		ref := toRef(c.Parent)
+		ref := pageRef(c.Parent, pages)
 		view.Parent = &ref
 	}
-	if descs, err := svc.Descendants(node.ID); err == nil {
-		for _, d := range descs {
-			if d.Type == model.TypeText && d.Text != "" {
-				view.Texts = append(view.Texts, toRef(d))
-			}
+	for _, a := range alternatives {
+		view.Alternatives = append(view.Alternatives, pageRef(a, pages))
+	}
+	st, err := SubtreeOf(svc, node.ID, 0)
+	if err != nil {
+		return nil, SectionView{}, err
+	}
+	view.Descendants = st.Descendants
+	for _, d := range st.Descendants {
+		if d.Node.Type == string(model.TypeText) && d.Node.Text != "" {
+			view.Texts = append(view.Texts, d.Node)
 		}
 	}
 	return nil, view, nil
 }
 
+// pageNames maps page ids to page names for disambiguation in section replies.
+func pageNames(svc *query.Service) map[string]string {
+	pages, err := svc.Pages()
+	if err != nil {
+		return nil
+	}
+	out := make(map[string]string, len(pages))
+	for _, p := range pages {
+		out[p.ID] = p.Name
+	}
+	return out
+}
+
+// pageRef renders a node as a NodeRef annotated with the name of its page.
+func pageRef(n *model.Node, pages map[string]string) NodeRef {
+	ref := toRef(n)
+	ref.PageName = pages[n.PageID]
+	return ref
+}
+
 // resolveSection picks the best layer whose name contains in.Name, honouring the
 // optional page and within filters. Exact names win, then shallower container
-// types, then shallower depth. When nothing matches it returns near-miss names.
-func resolveSection(svc *query.Service, in sectionInput) (*model.Node, []string, error) {
+// types, then shallower depth. Remaining candidates are returned as
+// alternatives so an ambiguous name stays disambiguable. When nothing matches
+// it returns near-miss names.
+func resolveSection(svc *query.Service, in sectionInput) (*model.Node, []*model.Node, []string, error) {
 	expr := `name~"` + escapePredicate(in.Name) + `"`
 	if in.Page != "" {
 		expr += ` AND page~"` + escapePredicate(in.Page) + `"`
 	}
 	nodes, err := svc.Query(expr)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	limit := in.Limit
 	if limit <= 0 || limit > 100 {
@@ -109,7 +141,7 @@ func resolveSection(svc *query.Service, in sectionInput) (*model.Node, []string,
 		cands = append(cands, cand{node: n, depth: len(path), exact: strings.EqualFold(n.Name, in.Name)})
 	}
 	if len(cands) == 0 {
-		return nil, suggest(svc, in.Name), nil
+		return nil, nil, suggest(svc, in.Name), nil
 	}
 	sort.SliceStable(cands, func(i, j int) bool {
 		a, b := cands[i], cands[j]
@@ -124,7 +156,14 @@ func resolveSection(svc *query.Service, in sectionInput) (*model.Node, []string,
 		}
 		return len(a.node.Name) < len(b.node.Name)
 	})
-	return cands[0].node, nil, nil
+	alts := make([]*model.Node, 0, min(limit, len(cands)-1))
+	for _, c := range cands[1:] {
+		alts = append(alts, c.node)
+		if len(alts) >= limit {
+			break
+		}
+	}
+	return cands[0].node, alts, nil, nil
 }
 
 // hasAncestor reports whether any ancestor (excluding the node itself) has a

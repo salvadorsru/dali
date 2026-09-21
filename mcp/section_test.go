@@ -70,6 +70,30 @@ func TestSectionTool(t *testing.T) {
 	if len(view.Path) == 0 {
 		t.Fatal("section has no path")
 	}
+	if len(view.Children) > 0 && len(view.Descendants) == 0 {
+		t.Fatalf("section has children but no subtree descendants")
+	}
+	for _, d := range view.Descendants {
+		if d.Node.AbsY == 0 && d.Node.AbsX == 0 {
+			t.Fatalf("subtree node %s has no absolute position", d.Node.ID)
+		}
+	}
+
+	// An ambiguous name must come back with disambiguation alternatives.
+	res, err = session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "section_figma",
+		Arguments: map[string]any{"name": "VideoCaption"},
+	})
+	if err != nil || res.IsError {
+		t.Fatalf("section_figma ambiguous: %v %+v body=%q", err, res, textOf(res))
+	}
+	var amb SectionView
+	if err := json.Unmarshal([]byte(textOf(res)), &amb); err != nil {
+		t.Fatal(err)
+	}
+	if amb.Node.ID != "" && len(amb.Alternatives) == 0 {
+		t.Fatal("expected alternatives for ambiguous name VideoCaption")
+	}
 }
 
 func TestResolveSectionFilters(t *testing.T) {
@@ -88,7 +112,7 @@ func TestResolveSectionFilters(t *testing.T) {
 	}
 	want := comps[0]
 
-	got, _, err := resolveSection(svc, sectionInput{Name: want.Name})
+	got, _, _, err := resolveSection(svc, sectionInput{Name: want.Name})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,14 +127,14 @@ func TestResolveSectionFilters(t *testing.T) {
 	}
 	if len(path) >= 2 {
 		ancestor := path[len(path)-2].Name
-		got, _, err := resolveSection(svc, sectionInput{Name: want.Name, Within: ancestor})
+		got, _, _, err := resolveSection(svc, sectionInput{Name: want.Name, Within: ancestor})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if got == nil {
 			t.Fatalf("within %q excluded a node that lives under it", ancestor)
 		}
-		none, _, err := resolveSection(svc, sectionInput{Name: want.Name, Within: "zzz-no-such-ancestor"})
+		none, _, _, err := resolveSection(svc, sectionInput{Name: want.Name, Within: "zzz-no-such-ancestor"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -119,8 +143,19 @@ func TestResolveSectionFilters(t *testing.T) {
 		}
 	}
 
+	// Ambiguous names surface their alternatives; only when the sample has them.
+	best, alts, _, err := resolveSection(svc, sectionInput{Name: "VideoCaption"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if best == nil {
+		t.Log("sample has no VideoCaption; skipping ambiguity check")
+	} else if len(alts) == 0 {
+		t.Fatalf("expected ambiguous VideoCaption to report alternatives, got %+v alts=%d", best, len(alts))
+	}
+
 	// Near-miss: a nonsense name yields suggestions, not a node.
-	none, matches, err := resolveSection(svc, sectionInput{Name: "zzz-no-such-layer-zzz"})
+	none, _, matches, err := resolveSection(svc, sectionInput{Name: "zzz-no-such-layer-zzz"})
 	if err != nil {
 		t.Fatal(err)
 	}
