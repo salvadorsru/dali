@@ -47,32 +47,45 @@ func (h *handlers) search(ctx context.Context, req *mcp.CallToolRequest, in sear
 	case "semantic":
 		out, err := h.searchSemantic(ctx, svc, in, limit)
 		return nil, out, err
-	case "hybrid":
-		out, err := h.searchHybrid(ctx, svc, in, limit)
-		return nil, out, err
 	default:
-		out, err := h.searchText(ctx, svc, in, limit)
+		out, err := h.searchUnified(ctx, svc, in, limit, in.Mode == "hybrid")
 		return nil, out, err
 	}
 }
 
-// searchText is the default full-text search over node names and body text.
-// A Type filter narrows results to a single node kind.
-func (h *handlers) searchText(ctx context.Context, svc *query.Service, in searchInput, limit int) (searchOutput, error) {
+// searchUnified serves the text (default) and hybrid modes. Text is exact
+// keyword over node names and body text; hybrid fuses full-text and semantic
+// vectors when a vector index exists, otherwise falls back to plain text. It
+// never builds embeddings.
+func (h *handlers) searchUnified(ctx context.Context, svc *query.Service, in searchInput, limit int, wantHybrid bool) (searchOutput, error) {
+	var emb embed.Embedder
+	mode := query.ModeText
+	if wantHybrid && h.emb != nil && svc.DB().VecIndexed() {
+		emb = h.emb
+		mode = query.ModeHybrid
+	}
 	opts := query.UnifiedOptions{
 		Query:       in.Query,
 		Limit:       limit,
-		Mode:        query.ModeText,
+		Mode:        mode,
 		Type:        in.Type,
 		Context:     in.Context,
 		MaxChildren: in.MaxChildren,
 	}
-	results, err := svc.UnifiedSearch(ctx, nil, opts)
+	if wantHybrid && in.Page != "" {
+		id, err := resolvePage(svc, in.Page)
+		if err != nil {
+			return searchOutput{}, err
+		}
+		opts.PageID = id
+	}
+	results, err := svc.UnifiedSearch(ctx, emb, opts)
 	if err != nil {
 		return searchOutput{}, err
 	}
 	out := semanticResults(results)
-	if len(out.Results) == 0 && in.Type == "" {
+	out.UsedEmbeddings = mode == query.ModeHybrid
+	if len(out.Results) == 0 && in.Type == "" && !wantHybrid {
 		out.Suggestions = suggest(svc, in.Query)
 	}
 	return out, nil
@@ -100,39 +113,6 @@ func (h *handlers) searchSemantic(ctx context.Context, svc *query.Service, in se
 		return searchOutput{}, err
 	}
 	return semanticResults(results), nil
-}
-
-// searchHybrid fuses full-text and semantic vectors when a vector index
-// exists, and otherwise falls back to plain text. It never builds embeddings.
-func (h *handlers) searchHybrid(ctx context.Context, svc *query.Service, in searchInput, limit int) (searchOutput, error) {
-	var emb embed.Embedder
-	mode := query.ModeText
-	if h.emb != nil && svc.DB().VecIndexed() {
-		emb = h.emb
-		mode = query.ModeHybrid
-	}
-	opts := query.UnifiedOptions{
-		Query:       in.Query,
-		Limit:       limit,
-		Mode:        mode,
-		Type:        in.Type,
-		Context:     in.Context,
-		MaxChildren: in.MaxChildren,
-	}
-	if in.Page != "" {
-		id, err := resolvePage(svc, in.Page)
-		if err != nil {
-			return searchOutput{}, err
-		}
-		opts.PageID = id
-	}
-	results, err := svc.UnifiedSearch(ctx, emb, opts)
-	if err != nil {
-		return searchOutput{}, err
-	}
-	out := semanticResults(results)
-	out.UsedEmbeddings = mode == query.ModeHybrid
-	return out, nil
 }
 
 // resolvePage maps a page name to its id, failing when the page is unknown.

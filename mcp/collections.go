@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -137,62 +136,6 @@ func (h *handlers) getStyles(ctx context.Context, req *mcp.CallToolRequest, in s
 	return nil, stylesOutput{Styles: filtered}, nil
 }
 
-type variablesOutput struct {
-	Variables []model.Variable `json:"variables"`
-}
-
-func (h *handlers) variables(ctx context.Context, req *mcp.CallToolRequest, in filterInput) (*mcp.CallToolResult, variablesOutput, error) {
-	svc, err := h.service(in.File, newNotifier(ctx, req))
-	if err != nil {
-		return nil, variablesOutput{}, err
-	}
-	vars, err := svc.Variables()
-	if err != nil {
-		return nil, variablesOutput{}, err
-	}
-	if in.Name != "" {
-		var filtered []model.Variable
-		for _, v := range vars {
-			if containsFold(v.Name, in.Name) || containsFold(v.Set, in.Name) {
-				filtered = append(filtered, v)
-			}
-		}
-		vars = filtered
-	}
-	if vars == nil {
-		vars = []model.Variable{}
-	}
-	return nil, variablesOutput{Variables: vars}, nil
-}
-
-type fontsOutput struct {
-	Fonts []model.Font `json:"fonts"`
-}
-
-func (h *handlers) getFonts(ctx context.Context, req *mcp.CallToolRequest, in filterInput) (*mcp.CallToolResult, fontsOutput, error) {
-	svc, err := h.service(in.File, newNotifier(ctx, req))
-	if err != nil {
-		return nil, fontsOutput{}, err
-	}
-	fonts, err := svc.Fonts()
-	if err != nil {
-		return nil, fontsOutput{}, err
-	}
-	if in.Name != "" {
-		var filtered []model.Font
-		for _, f := range fonts {
-			if containsFold(f.Family, in.Name) {
-				filtered = append(filtered, f)
-			}
-		}
-		fonts = filtered
-	}
-	if fonts == nil {
-		fonts = []model.Font{}
-	}
-	return nil, fontsOutput{Fonts: fonts}, nil
-}
-
 type pagesOutput struct {
 	Pages []NodeRef `json:"pages"`
 }
@@ -272,10 +215,13 @@ func (h *handlers) queryFigma(ctx context.Context, req *mcp.CallToolRequest, in 
 	if err != nil {
 		return nil, componentsOutput{}, err
 	}
-	if strings.HasPrefix(strings.TrimSpace(in.Query), "/") {
-		return nil, componentsOutput{}, fmt.Errorf("%q looks like XPath; use xpath_figma", in.Query)
+	isXPath := strings.HasPrefix(strings.TrimSpace(in.Query), "/")
+	var nodes []*model.Node
+	if isXPath {
+		nodes, err = svc.XPath(in.Query)
+	} else {
+		nodes, err = svc.Query(in.Query)
 	}
-	nodes, err := svc.Query(in.Query)
 	if err != nil {
 		return nil, componentsOutput{}, err
 	}
@@ -288,34 +234,15 @@ func (h *handlers) queryFigma(ctx context.Context, req *mcp.CallToolRequest, in 
 	}
 	out := componentsOutput{Components: toRefs(nodes)}
 	if len(out.Components) == 0 {
-		out.Suggestions = suggest(svc, in.Query)
-	}
-	return nil, out, nil
-}
-
-func (h *handlers) xpathFigma(ctx context.Context, req *mcp.CallToolRequest, in queryInput) (*mcp.CallToolResult, componentsOutput, error) {
-	svc, err := h.service(in.File, newNotifier(ctx, req))
-	if err != nil {
-		return nil, componentsOutput{}, err
-	}
-	nodes, err := svc.XPath(in.Query)
-	if err != nil {
-		return nil, componentsOutput{}, err
-	}
-	limit := in.Limit
-	if limit <= 0 {
-		limit = 50
-	}
-	if len(nodes) > limit {
-		nodes = nodes[:limit]
-	}
-	out := componentsOutput{Components: toRefs(nodes)}
-	if len(out.Components) == 0 {
-		sugs, err := svc.SuggestXPath(in.Query, 8)
-		if err == nil {
-			for _, s := range sugs {
-				out.Suggestions = append(out.Suggestions, s.Name)
+		if isXPath {
+			sugs, err := svc.SuggestXPath(in.Query, 8)
+			if err == nil {
+				for _, s := range sugs {
+					out.Suggestions = append(out.Suggestions, s.Name)
+				}
 			}
+		} else {
+			out.Suggestions = suggest(svc, in.Query)
 		}
 	}
 	return nil, out, nil

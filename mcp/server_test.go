@@ -141,13 +141,13 @@ func TestNewTools(t *testing.T) {
 		t.Fatalf("list_pages = %+v", pages)
 	}
 
-	body = call("get_fonts", nil)
-	var fonts fontsOutput
+	body = call("get_tokens", map[string]any{"kind": "type"})
+	var fonts tokensOutput
 	if err := json.Unmarshal([]byte(body), &fonts); err != nil {
-		t.Fatalf("get_fonts parse: %v", err)
+		t.Fatalf("get_tokens type parse: %v", err)
 	}
 	if len(fonts.Fonts) == 0 {
-		t.Fatalf("get_fonts empty")
+		t.Fatalf("get_tokens fonts empty")
 	}
 
 	body = call("find_instances", nil)
@@ -322,13 +322,13 @@ func TestTokens(t *testing.T) {
 	}
 	cid := comps.Components[0].ID
 
-	body = call("get_node", map[string]any{"id": cid})
-	var nv NodeView
+	body = call("get_context", map[string]any{"id": cid})
+	var nv ContextView
 	if err := json.Unmarshal([]byte(body), &nv); err != nil {
-		t.Fatalf("get_node parse: %v", err)
+		t.Fatalf("get_context parse: %v", err)
 	}
 	if nv.Node.ID != cid {
-		t.Fatalf("get_node = %+v", nv.Node)
+		t.Fatalf("get_context = %+v", nv.Node)
 	}
 
 	// Placements and component contract.

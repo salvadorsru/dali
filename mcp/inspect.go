@@ -65,28 +65,6 @@ type idInput struct {
 	ID   string `json:"id" jsonschema:"node id, e.g. 123:456"`
 }
 
-type NodeView struct {
-	Node   NodeRef       `json:"node"`
-	Styles []model.Style `json:"styles"`
-}
-
-func (h *handlers) getNode(ctx context.Context, req *mcp.CallToolRequest, in idInput) (*mcp.CallToolResult, NodeView, error) {
-	svc, err := h.service(in.File, newNotifier(ctx, req))
-	if err != nil {
-		return nil, NodeView{}, err
-	}
-	n, err := svc.Node(in.ID)
-	if err != nil || n == nil {
-		return nil, NodeView{}, err
-	}
-	view := NodeView{Node: toRef(n)}
-	if view.Styles, err = svc.StylesOf(in.ID); err != nil {
-		return nil, NodeView{}, err
-	}
-	enrich(svc, &view.Node, view.Styles)
-	return nil, view, nil
-}
-
 // ContextView is a flat, acyclic view of query.Context for MCP schema generation.
 type ContextView struct {
 	Node      NodeRef          `json:"node"`
@@ -126,34 +104,6 @@ func (h *handlers) getContext(ctx context.Context, req *mcp.CallToolRequest, in 
 		view.Component = &ref
 	}
 	return nil, view, nil
-}
-
-type childrenOutput struct {
-	Children []NodeRef `json:"children"`
-}
-
-func (h *handlers) getChildren(ctx context.Context, req *mcp.CallToolRequest, in idInput) (*mcp.CallToolResult, childrenOutput, error) {
-	svc, err := h.service(in.File, newNotifier(ctx, req))
-	if err != nil {
-		return nil, childrenOutput{}, err
-	}
-	nodes, err := svc.Children(in.ID)
-	if err != nil {
-		return nil, childrenOutput{}, err
-	}
-	return nil, childrenOutput{Children: toRefs(nodes)}, nil
-}
-
-func (h *handlers) getParent(ctx context.Context, req *mcp.CallToolRequest, in idInput) (*mcp.CallToolResult, NodeRef, error) {
-	svc, err := h.service(in.File, newNotifier(ctx, req))
-	if err != nil {
-		return nil, NodeRef{}, err
-	}
-	n, err := svc.Parent(in.ID)
-	if err != nil || n == nil {
-		return nil, NodeRef{}, err
-	}
-	return nil, toRef(n), nil
 }
 
 type descendantsInput struct {

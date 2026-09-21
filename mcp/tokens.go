@@ -15,6 +15,7 @@ import (
 type tokensInput struct {
 	File     string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
 	Kind     string `json:"kind,omitempty" jsonschema:"which token families to return: color, type, layout or all (default all)"`
+	Name     string `json:"name,omitempty" jsonschema:"optional variable (name or set) and font family name substring filter"`
 	MinUsage int    `json:"min_usage,omitempty" jsonschema:"drop colours used fewer than this many times; default 0"`
 	Limit    int    `json:"limit,omitempty" jsonschema:"max entries per family; defaults: colours 256, classes 200, layouts 200"`
 }
@@ -22,6 +23,7 @@ type tokensInput struct {
 type tokensOutput struct {
 	Colors      []query.SolidColor  `json:"colors,omitempty"`
 	ColorVars   []model.Variable    `json:"color_variables,omitempty"`
+	Variables   []model.Variable    `json:"variables,omitempty"`
 	Fonts       []model.Font        `json:"fonts,omitempty"`
 	TextClasses []query.TextClass   `json:"text_classes,omitempty"`
 	Layouts     []query.TokenLayout `json:"layouts,omitempty"`
@@ -58,17 +60,28 @@ func (h *handlers) getTokens(ctx context.Context, req *mcp.CallToolRequest, in t
 			return nil, tokensOutput{}, err
 		}
 		for _, v := range vars {
+			if in.Name != "" && !containsFold(v.Name, in.Name) && !containsFold(v.Set, in.Name) {
+				continue
+			}
 			if v.Type == "COLOR" {
 				out.ColorVars = append(out.ColorVars, v)
 			}
+			out.Variables = append(out.Variables, v)
 		}
 		if colorLimit > 0 && len(out.ColorVars) > colorLimit {
 			out.ColorVars = out.ColorVars[:colorLimit]
 		}
 	}
 	if want("type") {
-		if out.Fonts, err = svc.Fonts(); err != nil {
+		fonts, err := svc.Fonts()
+		if err != nil {
 			return nil, tokensOutput{}, err
+		}
+		for _, f := range fonts {
+			if in.Name != "" && !containsFold(f.Family, in.Name) {
+				continue
+			}
+			out.Fonts = append(out.Fonts, f)
 		}
 		if out.TextClasses, err = svc.TextClasses(limit); err != nil {
 			return nil, tokensOutput{}, err
