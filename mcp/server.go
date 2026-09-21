@@ -97,6 +97,7 @@ func registerTools(s *mcp.Server, h *handlers) {
 	mcp.AddTool(s, &mcp.Tool{Name: "get_children", Description: "List the direct children of a node."}, h.getChildren)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_descendants", Description: "Fetch a whole subtree in one call: every descendant in document order with geometry, styles and images. Optional depth limit. Use this to render a component without repeated get_node round trips."}, h.getDescendants)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_parent", Description: "Get the parent of a node."}, h.getParent)
+	mcp.AddTool(s, &mcp.Tool{Name: "section_figma", Description: "Resolve a named block and inspect it in one call: finds the best layer by name (optionally within a page or under an ancestor), then returns it with its structured styles, path, parent, children, images and texts. Prefer this when asked for a section or component by name."}, h.sectionFigma)
 	mcp.AddTool(s, &mcp.Tool{Name: "find_components", Description: "List components, optionally filtered by name substring."}, h.findComponents)
 	mcp.AddTool(s, &mcp.Tool{Name: "find_instances", Description: "List component instances, optionally filtered by name substring."}, h.findInstances)
 	mcp.AddTool(s, &mcp.Tool{Name: "find_assets", Description: "List image assets, optionally filtered by name substring."}, h.findAssets)
