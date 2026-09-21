@@ -164,7 +164,8 @@ registry or per-framework generators exist.
 
 ```bash
 dali design.fig generate
-dali design.fig generate --component 1:123 --out ./components
+dali design.fig generate --id 1:123 --out ./components
+dali design.fig generate --name "VideoCaption" --out ./components
 dali design.fig generate --tokens css
 ```
 
