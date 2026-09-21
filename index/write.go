@@ -14,7 +14,7 @@ import (
 // keeps a fingerprint in node_fingerprints, and Write only touches rows whose
 // fingerprint changed (new, modified or removed nodes). Unchanged nodes keep
 // their nodes, node_assets and text_search rows untouched, so repeated indexing
-// of the same file is cheap)Skip. The small derived tables (documents, pages,
+// of the same file is cheap). The small derived tables (documents, pages,
 // components, instances, assets, styles, style_defs, fonts) are still rebuilt
 // wholesale each run—they are tiny and cheap to repopulate.
 func (db *DB) Write(doc *model.Document) error {
@@ -156,6 +156,45 @@ func (db *DB) Write(doc *model.Document) error {
 		}
 		upsert = append(upsert, n)
 	}
+	var removed []string
+	for id := range oldFP {
+		if _, ok := newFP[id]; !ok {
+			removed = append(removed, id)
+		}
+	}
+
+	// Derived rows for every changed node are cleared in one pass. text_search
+	// is FTS5 with node_id UNINDEXED, so deleting per node rescans the whole
+	// table each time — quadratic on a fresh index.
+	if len(upsert) > 0 || len(removed) > 0 {
+		if _, err := tx.Exec(`CREATE TEMP TABLE IF NOT EXISTS dirty_nodes (node_id TEXT PRIMARY KEY)`); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`DELETE FROM dirty_nodes`); err != nil {
+			return err
+		}
+		dirtyStmt, err := tx.Prepare(`INSERT OR IGNORE INTO dirty_nodes (node_id) VALUES (?)`)
+		if err != nil {
+			return err
+		}
+		defer dirtyStmt.Close()
+		for _, n := range upsert {
+			if _, err := dirtyStmt.Exec(n.ID); err != nil {
+				return err
+			}
+		}
+		for _, id := range removed {
+			if _, err := dirtyStmt.Exec(id); err != nil {
+				return err
+			}
+		}
+		if _, err := tx.Exec(`DELETE FROM text_search WHERE node_id IN (SELECT node_id FROM dirty_nodes)`); err != nil {
+			return fmt.Errorf("clear text_search: %w", err)
+		}
+		if _, err := tx.Exec(`DELETE FROM node_assets WHERE node_id IN (SELECT node_id FROM dirty_nodes)`); err != nil {
+			return fmt.Errorf("clear node_assets: %w", err)
+		}
+	}
 
 	// Upsert prepared statements.
 	nodeStmt, err := tx.Prepare(`INSERT OR REPLACE INTO nodes
@@ -185,11 +224,6 @@ func (db *DB) Write(doc *model.Document) error {
 	defer fpStmt.Close()
 
 	for _, n := range upsert {
-		for _, d := range []string{"node_assets", "text_search"} {
-			if _, err := tx.Exec(`DELETE FROM `+d+` WHERE node_id = ?`, n.ID); err != nil {
-				return fmt.Errorf("clear %s for %s: %w", d, n.ID, err)
-			}
-		}
 		if _, err := nodeStmt.Exec(
 			n.ID, n.PageID, n.ParentID, string(n.Type), n.Name, n.Position,
 			boolInt(n.Visible), n.Opacity, n.X, n.Y, n.Width, n.Height,
@@ -216,24 +250,21 @@ func (db *DB) Write(doc *model.Document) error {
 	}
 
 	// Remove rows whose node no longer exists.
-	delFP, err := tx.Prepare(`DELETE FROM node_fingerprints WHERE node_id = ?`)
+	delNodeStmt, err := tx.Prepare(`DELETE FROM nodes WHERE id = ?`)
 	if err != nil {
 		return err
 	}
-	defer delFP.Close()
-	for id := range oldFP {
-		if _, ok := newFP[id]; ok {
-			continue
-		}
-		for _, d := range []string{"node_assets", "text_search"} {
-			if _, err := tx.Exec(`DELETE FROM `+d+` WHERE node_id = ?`, id); err != nil {
-				return fmt.Errorf("drop %s for %s: %w", d, id, err)
-			}
-		}
-		if _, err := tx.Exec(`DELETE FROM nodes WHERE id = ?`, id); err != nil {
+	defer delNodeStmt.Close()
+	delFPStmt, err := tx.Prepare(`DELETE FROM node_fingerprints WHERE node_id = ?`)
+	if err != nil {
+		return err
+	}
+	defer delFPStmt.Close()
+	for _, id := range removed {
+		if _, err := delNodeStmt.Exec(id); err != nil {
 			return fmt.Errorf("drop nodes for %s: %w", id, err)
 		}
-		if _, err := delFP.Exec(id); err != nil {
+		if _, err := delFPStmt.Exec(id); err != nil {
 			return err
 		}
 	}
