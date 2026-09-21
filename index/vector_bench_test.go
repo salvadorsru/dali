@@ -32,7 +32,7 @@ func BenchmarkSearchVectors(b *testing.B) {
 			if err := db.CreateVec(dim); err != nil {
 				b.Fatal(err)
 			}
-			if err := db.UpsertVectors(randomVectors(size, dim)); err != nil {
+			if err := db.WriteEmbeddings(randomVectors(size, dim), nil); err != nil {
 				b.Fatal(err)
 			}
 			b.ResetTimer()

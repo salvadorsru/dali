@@ -244,9 +244,3 @@ func (db *DB) ClearEmbeddings() error {
 	_, err := db.sql.Exec(`DELETE FROM embeddings`)
 	return err
 }
-
-func (db *DB) EmbeddingCount() (int, error) {
-	var n int
-	err := db.sql.QueryRow(`SELECT COUNT(*) FROM embeddings`).Scan(&n)
-	return n, err
-}

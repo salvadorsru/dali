@@ -35,11 +35,11 @@ func TestVec0(t *testing.T) {
 	if err := db.CreateVec(3); err != nil {
 		t.Fatalf("create vec0 with TEXT primary key: %v", err)
 	}
-	err = db.UpsertVectors([]Vector{
+	err = db.WriteEmbeddings([]Vector{
 		{NodeID: "1:1", Embedding: []float32{1, 0, 0}},
 		{NodeID: "1:2", Embedding: []float32{0, 1, 0}},
 		{NodeID: "1:3", Embedding: []float32{0, 0, 1}},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestVec0(t *testing.T) {
 		t.Fatalf("neighbors = %+v", n)
 	}
 
-	if err := db.UpsertVectors([]Vector{{NodeID: "1:1", Embedding: []float32{0, 1, 0}}}); err != nil {
+	if err := db.WriteEmbeddings([]Vector{{NodeID: "1:1", Embedding: []float32{0, 1, 0}}}, nil); err != nil {
 		t.Fatal(err)
 	}
 	n, err = db.SearchVectors([]float32{0, 1, 0}, 2)

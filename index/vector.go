@@ -153,33 +153,6 @@ func (db *DB) CountVectors() (int, error) {
 	return n, err
 }
 
-func (db *DB) UpsertVectors(vectors []Vector) error {
-	tx, err := db.sql.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	del, err := tx.Prepare(`DELETE FROM vec_nodes WHERE node_id = ?`)
-	if err != nil {
-		return err
-	}
-	defer del.Close()
-	ins, err := tx.Prepare(`INSERT INTO vec_nodes(node_id, embedding) VALUES (?, ?)`)
-	if err != nil {
-		return err
-	}
-	defer ins.Close()
-	for _, v := range vectors {
-		if _, err := del.Exec(v.NodeID); err != nil {
-			return err
-		}
-		if _, err := ins.Exec(v.NodeID, EncodeVector(v.Embedding)); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
-}
-
 func (db *DB) DeleteVectors(ids []string) error {
 	if len(ids) == 0 {
 		return nil
