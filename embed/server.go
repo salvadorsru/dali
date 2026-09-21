@@ -126,13 +126,21 @@ func resolveModel(ctx context.Context, repo, wantFile string) (hfSibling, error)
 		}
 	}
 	var fallback *hfSibling
+	// Prefer a small, fast quant: the download is much smaller than Q8_0 and
+	// embedding quality holds up well for design-text retrieval.
+	quants := []string{"Q4_K_M", "Q4_K_S", "Q8_0"}
+	for _, q := range quants {
+		for i := range model.Siblings {
+			s := &model.Siblings[i]
+			if strings.HasSuffix(strings.ToLower(s.Filename), ".gguf") && strings.Contains(s.Filename, q) {
+				return *s, nil
+			}
+		}
+	}
 	for i := range model.Siblings {
 		s := &model.Siblings[i]
 		if !strings.HasSuffix(strings.ToLower(s.Filename), ".gguf") {
 			continue
-		}
-		if strings.Contains(s.Filename, "Q8_0") {
-			return *s, nil
 		}
 		if fallback == nil {
 			fallback = s
