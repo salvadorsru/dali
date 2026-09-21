@@ -45,7 +45,7 @@ func (g *HTMLGenerator) GenerateComponent(spec ir.ComponentSpec, tokens ir.Token
 		Vector:   ir.VectorSpec{},
 		Images:   spec.Assets,
 	}
-	if len(spec.Children) > 0 {
+	if len(spec.Children) == 1 {
 		root = spec.Children[0]
 	}
 	b.WriteString(g.renderElement(root, ""))
