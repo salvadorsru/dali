@@ -186,7 +186,7 @@ func cmdMCPConfig(args []string) error {
 	if base == "" {
 		base, _ = os.Getwd()
 	}
-	env := map[string]string{"DALI_EMBED_YES": "1"}
+	env := map[string]string{}
 
 	var names []string
 	if *all {

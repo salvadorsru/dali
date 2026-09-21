@@ -32,7 +32,7 @@ func TestTools(t *testing.T) {
 
 	ctx := context.Background()
 	ct, st := mcp.NewInMemoryTransports()
-	srv, h := newServer(sample)
+	srv, h := newServer(sample, nil)
 	defer h.close()
 	go srv.Run(ctx, st)
 
@@ -101,7 +101,7 @@ func TestNewTools(t *testing.T) {
 
 	ctx := context.Background()
 	ct, st := mcp.NewInMemoryTransports()
-	srv, h := newServer(sample)
+	srv, h := newServer(sample, nil)
 	defer h.close()
 	go srv.Run(ctx, st)
 
@@ -200,7 +200,7 @@ func TestExtractAssets(t *testing.T) {
 
 	ctx := context.Background()
 	ct, st := mcp.NewInMemoryTransports()
-	srv, h := newServer(cp)
+	srv, h := newServer(cp, nil)
 	defer h.close()
 	go srv.Run(ctx, st)
 
@@ -263,7 +263,7 @@ func TestTokens(t *testing.T) {
 
 	ctx := context.Background()
 	ct, st := mcp.NewInMemoryTransports()
-	srv, h := newServer(sample)
+	srv, h := newServer(sample, nil)
 	defer h.close()
 	go srv.Run(ctx, st)
 
@@ -369,7 +369,7 @@ func TestGenerate(t *testing.T) {
 
 	ctx := context.Background()
 	ct, st := mcp.NewInMemoryTransports()
-	srv, h := newServer(sample)
+	srv, h := newServer(sample, nil)
 	defer h.close()
 	go srv.Run(ctx, st)
 
@@ -460,7 +460,7 @@ func TestIndexNotification(t *testing.T) {
 
 	ctx := context.Background()
 	ct, st := mcp.NewInMemoryTransports()
-	srv, h := newServer(cp)
+	srv, h := newServer(cp, nil)
 	defer h.close()
 	go srv.Run(ctx, st)
 

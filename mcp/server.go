@@ -68,15 +68,26 @@ type handlers struct {
 // may override it with their own "file" argument, so one server can serve many
 // designs.
 func Serve(ctx context.Context, def string) error {
-	s, h := newServer(def)
+	s, h := newServer(def, mcpEmbedder())
 	defer h.close()
 	return s.Run(ctx, &mcp.StdioTransport{})
 }
 
-func newServer(def string) (*mcp.Server, *handlers) {
+// mcpEmbedder returns the embedder for the MCP server. Embeddings are opt-in:
+// without DALI_EMBEDDINGS=1 no embedder is constructed, so searches stay
+// offline and llama-server never starts. When enabled, FromEnv still resolves
+// lazily — the managed server only launches on the first Embed call.
+func mcpEmbedder() embed.Embedder {
+	if os.Getenv("DALI_EMBEDDINGS") == "" {
+		return nil
+	}
+	return embed.FromEnv()
+}
+
+func newServer(def string, emb embed.Embedder) (*mcp.Server, *handlers) {
 	h := &handlers{
 		def:     def,
-		emb:     embed.FromEnv(),
+		emb:     emb,
 		opened:  make(map[string]*query.Service),
 		figures: discover(),
 	}
@@ -86,9 +97,10 @@ func newServer(def string) (*mcp.Server, *handlers) {
 }
 
 func registerTools(s *mcp.Server, h *handlers) {
-	mcp.AddTool(s, &mcp.Tool{Name: "search_figma", Description: "Full-text search across node names and text content. Suggests near-miss names when nothing matches."}, h.search)
-	mcp.AddTool(s, &mcp.Tool{Name: "semantic_search_figma", Description: "Semantic (vector) search across nodes. Use for conceptual queries with no exact text match."}, h.semanticSearch)
-	mcp.AddTool(s, &mcp.Tool{Name: "hybrid_search_figma", Description: "Fuse full-text, semantic and structural search into one ranked result list. Use for queries that need both wording and meaning."}, h.hybridSearch)
+	mcp.AddTool(s, &mcp.Tool{Name: "search_figma", Description: "Full-text search across node names and text content. Suggests near-miss names when nothing matches. Prefer this or section_figma when you know the exact name; embeddings are never used."}, h.search)
+	mcp.AddTool(s, &mcp.Tool{Name: "semantic_search_figma", Description: "Semantic (vector) search across nodes. Only for conceptual queries with no exact text match. Fails with a hint when embeddings are disabled or the vector index is missing; call index_embeddings first."}, h.semanticSearch)
+	mcp.AddTool(s, &mcp.Tool{Name: "hybrid_search_figma", Description: "Fuse full-text, semantic and structural search into one ranked list. Uses existing vectors only; it never builds them (use index_embeddings). Falls back to full-text when no vectors are indexed."}, h.hybridSearch)
+	mcp.AddTool(s, &mcp.Tool{Name: "index_embeddings", Description: "Build the vector index: embed every node with semantic content. The only tool that builds embeddings; searches never do. Requires DALI_EMBEDDINGS=1 on the server."}, h.indexEmbeddings)
 	mcp.AddTool(s, &mcp.Tool{Name: "find_text", Description: "Search text content of TEXT nodes."}, h.findText)
 	mcp.AddTool(s, &mcp.Tool{Name: "query_figma", Description: "Query the document tree with structural expressions, e.g. type=FRAME, name~\"card\", text~price, visible=true, width>=200, component=Button, children(\"Header\"); combine terms with AND. Suggests near-miss names when nothing matches."}, h.queryFigma)
 	mcp.AddTool(s, &mcp.Tool{Name: "xpath_figma", Description: "Query the document tree with an XPath subset, e.g. //FRAME[@name~'card'], /DOCUMENT/CANVAS, //*[contains(@name,'button')]. Suggests near-miss names when nothing matches."}, h.xpathFigma)
