@@ -55,7 +55,7 @@ func TestIndexIncremental(t *testing.T) {
 	ctx := context.Background()
 	emb := fakeEmbedder{}
 
-	stats, err := Index(ctx, db, emb)
+	stats, err := IndexWithProgress(ctx, db, emb, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestIndexIncremental(t *testing.T) {
 		t.Fatalf("vectors = %d", count)
 	}
 
-	stats, err = Index(ctx, db, emb)
+	stats, err = IndexWithProgress(ctx, db, emb, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestIndexIncremental(t *testing.T) {
 	if _, err := db.SQL().Exec(`UPDATE nodes SET text = 'Buy now, fast' WHERE id = 'n2'`); err != nil {
 		t.Fatal(err)
 	}
-	stats, err = Index(ctx, db, emb)
+	stats, err = IndexWithProgress(ctx, db, emb, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestIndexIncremental(t *testing.T) {
 	if _, err := db.SQL().Exec(`DELETE FROM nodes WHERE id = 'n2'`); err != nil {
 		t.Fatal(err)
 	}
-	stats, err = Index(ctx, db, emb)
+	stats, err = IndexWithProgress(ctx, db, emb, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

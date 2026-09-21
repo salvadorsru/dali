@@ -26,12 +26,8 @@ type Stats struct {
 // Progress reports embedding progress while indexing.
 type Progress func(done, total int)
 
-// Index generates or refreshes embeddings for every node with semantic content.
-func Index(ctx context.Context, db *index.DB, emb embed.Embedder) (Stats, error) {
-	return IndexWithProgress(ctx, db, emb, nil)
-}
-
-// IndexWithProgress is Index with a progress callback.
+// IndexWithProgress generates or refreshes embeddings for every node with
+// semantic content, reporting progress through cb.
 func IndexWithProgress(ctx context.Context, db *index.DB, emb embed.Embedder, progress Progress) (Stats, error) {
 	if !db.VecAvailable() {
 		return Stats{}, errors.New("sqlite-vec is not available in this build")
