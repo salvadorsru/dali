@@ -25,6 +25,9 @@ type searchOutput struct {
 	Results []NodeRef `json:"results"`
 	// Suggestions lists layer names close to the query when nothing matched.
 	Suggestions []string `json:"suggestions,omitempty"`
+	// UsedEmbeddings reports whether semantic vectors contributed to hybrid
+	// results; false means the search fell back to full-text only.
+	UsedEmbeddings bool `json:"used_embeddings,omitempty"`
 }
 
 func (h *handlers) search(ctx context.Context, req *mcp.CallToolRequest, in searchInput) (*mcp.CallToolResult, searchOutput, error) {
@@ -37,7 +40,7 @@ func (h *handlers) search(ctx context.Context, req *mcp.CallToolRequest, in sear
 	if limit <= 0 {
 		limit = 20
 	}
-	results, err := svc.UnifiedSearch(ctx, h.emb, query.UnifiedOptions{
+	results, err := svc.UnifiedSearch(ctx, nil, query.UnifiedOptions{
 		Query:       in.Query,
 		Limit:       limit,
 		Mode:        query.ModeText,
@@ -67,19 +70,19 @@ type semanticInput struct {
 
 func (h *handlers) semanticSearch(ctx context.Context, req *mcp.CallToolRequest, in semanticInput) (*mcp.CallToolResult, searchOutput, error) {
 	if h.emb == nil {
-		return nil, searchOutput{}, errors.New("no embedder configured")
+		return nil, searchOutput{}, errors.New("embeddings disabled: set DALI_EMBEDDINGS=1 and restart the MCP server to use semantic search")
 	}
 	note := newNotifier(ctx, req)
 	svc, err := h.service(in.File, note)
 	if err != nil {
 		return nil, searchOutput{}, err
 	}
+	if !svc.DB().VecIndexed() {
+		return nil, searchOutput{}, errors.New("vector index missing: call index_embeddings first")
+	}
 	limit := in.Limit
 	if limit <= 0 {
 		limit = 20
-	}
-	if err := ensureEmbedded(ctx, svc, h.emb, note); err != nil {
-		return nil, searchOutput{}, err
 	}
 	opts := query.Options{Query: in.Query, Type: in.Type, Limit: limit}
 	if in.Page != "" {
@@ -110,9 +113,6 @@ type hybridInput struct {
 }
 
 func (h *handlers) hybridSearch(ctx context.Context, req *mcp.CallToolRequest, in hybridInput) (*mcp.CallToolResult, searchOutput, error) {
-	if h.emb == nil {
-		return nil, searchOutput{}, errors.New("no embedder configured")
-	}
 	note := newNotifier(ctx, req)
 	svc, err := h.service(in.File, note)
 	if err != nil {
@@ -122,13 +122,19 @@ func (h *handlers) hybridSearch(ctx context.Context, req *mcp.CallToolRequest, i
 	if limit <= 0 {
 		limit = 20
 	}
-	if err := ensureEmbedded(ctx, svc, h.emb, note); err != nil {
-		return nil, searchOutput{}, err
+	// Hybrid never builds embeddings: vectors are used only when both the
+	// embedder is configured and the vector index already exists. Otherwise,
+	// fall back to full-text so the search still works without a llama.
+	var emb embed.Embedder
+	mode := query.ModeText
+	if h.emb != nil && svc.DB().VecIndexed() {
+		emb = h.emb
+		mode = query.ModeHybrid
 	}
 	opts := query.UnifiedOptions{
 		Query:       in.Query,
 		Limit:       limit,
-		Mode:        query.ModeHybrid,
+		Mode:        mode,
 		Type:        in.Type,
 		Context:     in.Context,
 		MaxChildren: in.MaxChildren,
@@ -143,11 +149,13 @@ func (h *handlers) hybridSearch(ctx context.Context, req *mcp.CallToolRequest, i
 		}
 		opts.PageID = id
 	}
-	results, err := svc.UnifiedSearch(ctx, h.emb, opts)
+	results, err := svc.UnifiedSearch(ctx, emb, opts)
 	if err != nil {
 		return nil, searchOutput{}, err
 	}
-	return nil, semanticResults(results), nil
+	out := semanticResults(results)
+	out.UsedEmbeddings = mode == query.ModeHybrid
+	return nil, out, nil
 }
 
 func (h *handlers) findText(ctx context.Context, req *mcp.CallToolRequest, in searchInput) (*mcp.CallToolResult, searchOutput, error) {
@@ -159,11 +167,11 @@ func (h *handlers) findText(ctx context.Context, req *mcp.CallToolRequest, in se
 	if limit <= 0 {
 		limit = 20
 	}
-	results, err := svc.UnifiedSearch(ctx, h.emb, query.UnifiedOptions{
+	results, err := svc.UnifiedSearch(ctx, nil, query.UnifiedOptions{
 		Query: in.Query,
 		Type:  string(model.TypeText),
 		Limit: limit * 4,
-		Mode:  query.ModeHybrid,
+		Mode:  query.ModeText,
 	})
 	if err != nil {
 		return nil, searchOutput{}, err
@@ -181,22 +189,56 @@ func (h *handlers) findText(ctx context.Context, req *mcp.CallToolRequest, in se
 	return nil, out, nil
 }
 
-// ensureEmbedded builds missing embeddings and reports progress, so semantic
-// retrievers always run against a current vector index.
-func ensureEmbedded(ctx context.Context, svc *query.Service, emb embed.Embedder, note *notifier) error {
+// ensureEmbedded builds missing embeddings and reports progress, so the vector
+// index is current. indexEmbeddings is its only caller; searches never index.
+func ensureEmbedded(ctx context.Context, svc *query.Service, emb embed.Embedder, note *notifier) (semantic.Stats, error) {
 	note.start("embedding")
 	stats, err := semantic.IndexWithProgress(ctx, svc.DB(), emb, func(done, total int) {
 		note.progress(fmt.Sprintf("embedding (%d/%d)", done, total), float64(done), float64(total))
 	})
 	if err != nil {
-		return err
+		return stats, err
 	}
 	if stats.Indexed > 0 {
 		note.done(fmt.Sprintf("embedded %d/%d nodes", stats.Indexed, stats.Total))
 	} else {
 		note.done("embeddings up to date")
 	}
-	return nil
+	return stats, nil
+}
+
+type fileInput struct {
+	File string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
+}
+
+type indexOutput struct {
+	Total   int    `json:"total"`
+	Indexed int    `json:"indexed"`
+	Reused  int    `json:"reused"`
+	Deleted int    `json:"deleted"`
+	Skipped int    `json:"skipped"`
+	Model   string `json:"model"`
+}
+
+// indexEmbeddings builds the vector index explicitly. It honours ctx: when the
+// client disconnects, the embedding pipeline stops instead of running on.
+func (h *handlers) indexEmbeddings(ctx context.Context, req *mcp.CallToolRequest, in fileInput) (*mcp.CallToolResult, indexOutput, error) {
+	if h.emb == nil {
+		return nil, indexOutput{}, errors.New("embeddings disabled: set DALI_EMBEDDINGS=1 and restart the MCP server")
+	}
+	note := newNotifier(ctx, req)
+	svc, err := h.service(in.File, note)
+	if err != nil {
+		return nil, indexOutput{}, err
+	}
+	stats, err := ensureEmbedded(ctx, svc, h.emb, note)
+	if err != nil {
+		return nil, indexOutput{}, err
+	}
+	return nil, indexOutput{
+		Total: stats.Total, Indexed: stats.Indexed, Reused: stats.Reused,
+		Deleted: stats.Deleted, Skipped: stats.Skipped, Model: stats.Model,
+	}, nil
 }
 
 func semanticResults(results []query.Result) searchOutput {
