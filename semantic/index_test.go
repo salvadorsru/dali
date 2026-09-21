@@ -3,7 +3,10 @@ package semantic
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/salvadorsru/dali/index"
 )
@@ -96,5 +99,85 @@ func TestIndexIncremental(t *testing.T) {
 	count, _ = db.CountVectors()
 	if count != 1 {
 		t.Fatalf("vectors after delete = %d", count)
+	}
+}
+
+// blockingEmbedder parks each embedding request until the context is cancelled,
+// so a cancelled pipeline surfaces the cancellation instead of a silent success.
+type blockingEmbedder struct {
+	once    sync.Once
+	entered chan struct{}
+}
+
+func (*blockingEmbedder) Model() string { return "block" }
+
+func (b *blockingEmbedder) Embed(ctx context.Context, _ []string) ([][]float32, error) {
+	b.once.Do(func() { close(b.entered) })
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+// TestIndexCancelled: a pre-cancelled context aborts indexing immediately
+// instead of reporting an empty successful run.
+func TestIndexCancelled(t *testing.T) {
+	db, err := index.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if !db.VecAvailable() {
+		t.Skip("sqlite-vec not available")
+	}
+	if _, err := db.SQL().Exec(`INSERT INTO pages (id, name, position, ordinal) VALUES ('p1', 'Checkout', '', 0)`); err != nil {
+		t.Fatal(err)
+	}
+	insertNode(t, db, "n1", "p1", "", "FRAME", "Card", "")
+	insertNode(t, db, "n2", "p1", "n1", "TEXT", "", "Buy now")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = IndexWithProgress(ctx, db, fakeEmbedder{}, nil)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("index with cancelled ctx = %v, want context.Canceled", err)
+	}
+}
+
+// TestIndexCancelsMidFlight: cancelling a running index stops the pipeline and
+// returns promptly instead of leaving it grinding to completion.
+func TestIndexCancelsMidFlight(t *testing.T) {
+	db, err := index.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if !db.VecAvailable() {
+		t.Skip("sqlite-vec not available")
+	}
+	if _, err := db.SQL().Exec(`INSERT INTO pages (id, name, position, ordinal) VALUES ('p1', 'Checkout', '', 0)`); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 200; i++ {
+		insertNode(t, db, string(rune('a'+i)), "p1", "", "FRAME", "Card", "text")
+	}
+
+	emb := &blockingEmbedder{entered: make(chan struct{})}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, err := IndexWithProgress(ctx, db, emb, nil)
+		done <- err
+	}()
+	select {
+	case <-emb.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("embedding never started")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("index after cancel = %v, want context.Canceled", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("index hung after cancel")
 	}
 }

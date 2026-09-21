@@ -209,7 +209,15 @@ func embedAll(ctx context.Context, db *index.DB, emb embed.Embedder, changed []D
 			progress(stats.Indexed, len(changed))
 		}
 	}
-	return firstErr
+	if firstErr != nil {
+		return firstErr
+	}
+	// A cancelled caller with no embedding error must surface as a cancellation,
+	// not as a silent success that reports "embeddings up to date".
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func writeBatch(db *index.DB, docs []Doc, vectors [][]float32, model string, stats *Stats, dim *string) error {
