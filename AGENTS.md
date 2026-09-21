@@ -174,7 +174,8 @@ The managed server is kept running so subsequent commands can reuse it.
 
 | Variable                 | Purpose                                    |
 | ------------------------ | ------------------------------------------ |
-| `DALI_EMBED_PROVIDER`    | `auto`, `ollama`, `llama`, or `remote`     |
+| `DALI_EMBED_PROVIDER`    | `auto`, `ollama`, `llama`, `remote`, or `off` |
+| `DALI_EMBEDDINGS=1`      | Opt-in: enable embeddings in the MCP server |
 | `DALI_CACHE_DIR`         | Dalí cache directory                       |
 | `DALI_LLAMA_URL`         | Reuse an existing `llama-server`           |
 | `DALI_EMBED_URL`         | Ollama embedding endpoint                  |
@@ -232,6 +233,26 @@ MCP tools accept an optional `file` argument, and `list_figs` can discover avail
 Indexing is lazy when required.
 
 Progress is reported through MCP progress notifications when the client provides a `_meta.progressToken`. Dalí also reports indexing activity through `dali:` lines on stderr.
+
+### Embeddings opt-in
+
+The MCP server constructs an embedder **only** when `DALI_EMBEDDINGS=1` is set
+(`mcpEmbedder` in `mcp/server.go`); `DALI_EMBED_PROVIDER=off` also disables it.
+Searches never build embeddings — `index_embeddings` is the only tool that
+calls `ensureEmbedded`. Llama-server never starts at server open time; it
+launches on the first actual `Embed` call.
+
+| Tool | Embeddings | Indexes |
+| --- | --- | --- |
+| `section_figma`, `search_figma`, `query_figma`, `xpath_figma`, `find_text`, `find_components`, `find_instances` | never | never |
+| `hybrid_search_figma` | only when the vector index already exists and embeddings are ON | never (falls back to full-text) |
+| `semantic_search_figma` | only when embeddings are ON and the vector index exists | never |
+| `index_embeddings` | yes | yes — the only tool that does |
+
+Agent guidance: exact names → `section_figma` / `search_figma`. Do not use
+`semantic`/`hybrid` unless the query is conceptual. Hybrid uses existing
+vectors only, and semantic fails with a hint when disabled or unindexed —
+call `index_embeddings` first.
 
 ### MCP configuration
 

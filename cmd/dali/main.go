@@ -237,7 +237,8 @@ Flags:
   --quiet, -q  hide progress and status
 
 Environment:
-  DALI_EMBED_PROVIDER  auto | ollama | llama | remote  (default auto)
+  DALI_EMBED_PROVIDER  auto | ollama | llama | remote | off  (default auto)
+  DALI_EMBEDDINGS      set to 1 to enable embeddings in the MCP server (opt-in)
   DALI_LLAMA_URL       use an existing llama-server
   DALI_LLAMA_MODEL     managed model repo (default ggml-org/embeddinggemma-300M-GGUF)
   DALI_LLAMA_TAG       pinned llama.cpp release tag

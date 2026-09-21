@@ -250,8 +250,9 @@ dali index --force             # rebuild even if up to date
   `Frame 12`) are not embedded; they remain structurally searchable.
 - Changing the model or bumping `semantic.GeneratorVersion` drops and rebuilds
   the vector index; everything else is incremental.
-- `semantic-search` and the MCP `semantic_search_figma` tool index embeddings on
-  demand, so `index --embeddings` is only needed to pre-build them.
+- The CLI builds embeddings on an **explicit** command only (`index
+  --embeddings`, `semantic-search`, `search --hybrid`); a search never index on
+  its own.
 
 The managed server is left running after a command, so the next search reuses
 it: `dali serve` keeps it alive between sessions, `dali stop` stops it, and
@@ -265,9 +266,11 @@ fig passed to `dali mcp` and then to the single `.fig` in the working directory.
 
 | Tool | Description |
 | --- | --- |
-| `search_figma` | Full-text search, with optional context. |
-| `semantic_search_figma` | Vector search; auto-indexes missing embeddings. |
-| `hybrid_search_figma` | Fusion of full-text, semantic and structural search (RRF). |
+| `search_figma` | Full-text search, with optional context. Ideal for exact names; never uses embeddings. |
+| `section_figma` | Resolve a named block and inspect it in one call. Prefer for exact names. |
+| `semantic_search_figma` | Vector search. Conceptual queries only; requires the vector index (see below). |
+| `hybrid_search_figma` | Fusion of full-text, semantic and structural search (RRF). Uses existing vectors only; falls back to full-text when none exist. |
+| `index_embeddings` | Build the vector index explicitly. The only tool that embeds; searches never do. |
 | `query_figma` | Structural expressions, e.g. `type=FRAME`, `name~"card"`, `children("Header")`, `width>=320`. |
 | `xpath_figma` | XPath subset over the tree, e.g. `//FRAME[@name~"card"]`, `/DOCUMENT/CANVAS`. |
 | `get_node` / `get_context` / `get_children` | Node inspection. |
@@ -301,12 +304,35 @@ Claude Code (`.mcp.json`), VS Code (`.vscode/mcp.json`), Cline (`.cline/mcp.json
 Roo Code (`.roo/mcp.json`), and Windsurf (global). Existing files are **merged**,
 not replaced; the design path is written absolute.
 
-Two details avoid common failures:
+### Embeddings are opt-in
 
-- `DALI_EMBED_YES=1` lets semantic search download the model over stdio, where
-  there is no terminal to confirm.
-- OpenCode's `timeout` defaults to 5000 ms, and first start can exceed it, so
-  the generated config raises it.
+The server **never** starts an embedder unless `DALI_EMBEDDINGS=1` is set. Search
+tools stay offline by default; `hybrid_search_figma` degrades to full-text and
+`semantic_search_figma` fails with a hint. To enable vectors, add to the server
+`env` (in the config file) or pass on the command line:
+
+```json
+"env": {
+  "DALI_EMBEDDINGS": "1",
+  "DALI_EMBED_PROVIDER": "auto",
+  "DALI_EMBED_YES": "1"
+}
+```
+
+`DALI_EMBEDDINGS=1` is the opt-in gate. `DALI_EMBED_PROVIDER` picks the provider
+and `DALI_EMBED_YES` skips the download confirmation (there is no terminal over
+stdio). `mcp-config` does not write any of these by default.
+
+Then build the vectors explicitly — searches never index:
+
+```bash
+dali design.fig index --embeddings
+# or through the MCP server:
+#   index_embeddings
+```
+
+OpenCode's `timeout` defaults to 5000 ms, and first start can exceed it, so the
+generated config raises it to 120000 ms.
 
 When a tool opens a stale index, the server rebuilds it on the fly, reporting
 progress through `notifications/progress` when the client sends a
