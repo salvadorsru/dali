@@ -22,22 +22,14 @@ var ErrEntryNotFound = errors.New("fig: entry not found")
 const (
 	figMagic  = "fig-kiwi"
 	canvasFig = "canvas.fig"
-	metaJSON  = "meta.json"
 	zstdMagic = 0xFD2FB528
 )
 
 // Version identifies parser behavior for incremental indexing.
 const Version = 1
 
-type Meta struct {
-	Version   int    `json:"version"`
-	App       string `json:"app"`
-	CreatedAt string `json:"createdAt"`
-}
-
 type File struct {
 	Path    string
-	Meta    Meta
 	Schema  *kiwi.Schema
 	Message map[string]any
 	zip     *zip.ReadCloser
@@ -65,9 +57,6 @@ func Open(path string) (*File, error) {
 	if len(canvas) < 16 || string(canvas[:8]) != figMagic {
 		zr.Close()
 		return nil, fmt.Errorf("not a fig-kiwi file: bad prelude")
-	}
-	if meta, err := readEntry(zr, metaJSON); err == nil {
-		_ = json.Unmarshal(meta, &f.Meta)
 	}
 
 	schemaRaw, off, err := readChunk(canvas, 12)

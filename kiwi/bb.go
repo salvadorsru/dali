@@ -16,8 +16,6 @@ func NewByteBuffer(data []byte) *ByteBuffer {
 	return &ByteBuffer{data: data}
 }
 
-func (b *ByteBuffer) Offset() int { return b.pos }
-
 func (b *ByteBuffer) readByte() (byte, error) {
 	if b.pos >= len(b.data) {
 		return 0, errOutOfBounds
