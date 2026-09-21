@@ -106,6 +106,8 @@ type LayoutSpec struct {
 	StrokeColor          string
 	StrokeAlign          string
 	Constraints          ConstraintsSpec
+	Width                float64 // absolute rendered width (FIXED primary-axis sizing)
+	Height               float64 // absolute rendered height (FIXED counter-axis sizing)
 }
 
 // PaddingSpec represents padding on all sides.

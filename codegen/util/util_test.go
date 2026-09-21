@@ -155,3 +155,93 @@ func TestLayoutToTailwindHorizontal(t *testing.T) {
 		t.Errorf("classes = %q, want gap-[8px]", classes)
 	}
 }
+
+func TestLayoutToTailwindPerAxis(t *testing.T) {
+	cases := []struct {
+		name string
+		spec ir.LayoutSpec
+		want []string
+	}{
+		{"fixed-horizontal", ir.LayoutSpec{Mode: "FLEX", Direction: "row", PrimaryAxisSizing: "FIXED", Width: 120, CounterAxisSizing: "HUG"}, []string{"w-[120px]", "h-fit"}},
+		{"fixed-vertical", ir.LayoutSpec{Mode: "FLEX", Direction: "column", PrimaryAxisSizing: "FIXED", Height: 80, CounterAxisSizing: "FILL"}, []string{"h-[80px]", "self-stretch"}},
+		{"hug-horizontal", ir.LayoutSpec{Mode: "FLEX", Direction: "row", PrimaryAxisSizing: "HUG"}, []string{"w-fit"}},
+		{"fill-horizontal", ir.LayoutSpec{Mode: "FLEX", Direction: "row", PrimaryAxisSizing: "FILL"}, []string{"flex-1"}},
+	}
+	for _, tc := range cases {
+		classes := LayoutToTailwind(tc.spec)
+		for _, want := range tc.want {
+			if !strings.Contains(classes, want) {
+				t.Errorf("%s: classes = %q, want contains %q", tc.name, classes, want)
+			}
+		}
+	}
+}
+
+func TestTranslateStackSizing(t *testing.T) {
+	n := node(t, 2, "FRAME", "FixedRow", map[string]any{
+		"stackMode":          "HORIZONTAL",
+		"stackPrimarySizing": "FIXED",
+		"stackCounterSizing": "RESIZE_TO_FIT_WITH_IMPLICIT_SIZE",
+		"size":               map[string]any{"x": float64(120), "y": float64(40)},
+	})
+	spec := TranslateLayout(n)
+	if spec.PrimaryAxisSizing != "FIXED" || spec.CounterAxisSizing != "HUG" {
+		t.Fatalf("sizing = %q/%q, want FIXED/HUG", spec.PrimaryAxisSizing, spec.CounterAxisSizing)
+	}
+	classes := LayoutToTailwind(spec)
+	for _, want := range []string{"flex-row", "w-[120px]", "h-fit"} {
+		if !strings.Contains(classes, want) {
+			t.Errorf("classes = %q, want contains %q", classes, want)
+		}
+	}
+}
+
+func TestTranslateStackSizingAbsent(t *testing.T) {
+	n := node(t, 2, "FRAME", "PlainRow", map[string]any{
+		"stackMode": "HORIZONTAL",
+	})
+	spec := TranslateLayout(n)
+	if spec.PrimaryAxisSizing != "" || spec.CounterAxisSizing != "" {
+		t.Errorf("sizing = %q/%q, want empty", spec.PrimaryAxisSizing, spec.CounterAxisSizing)
+	}
+	if classes := LayoutToTailwind(spec); strings.Contains(classes, "self-stretch") {
+		t.Errorf("classes = %q, want no self-stretch", classes)
+	}
+}
+
+func TestTranslateMinSize(t *testing.T) {
+	n := node(t, 2, "FRAME", "Constrained", map[string]any{
+		"stackMode": "VERTICAL",
+		"minSize":   map[string]any{"value": map[string]any{"x": float64(100), "y": float64(0)}},
+	})
+	spec := TranslateLayout(n)
+	if spec.Constraints.MinWidth != 100 || spec.Constraints.MinHeight != 0 {
+		t.Errorf("constraints = %+v, want MinWidth 100, MinHeight 0", spec.Constraints)
+	}
+}
+
+func TestTranslateStackPadding(t *testing.T) {
+	symmetric := node(t, 2, "FRAME", "Symmetric", map[string]any{
+		"stackMode":               "VERTICAL",
+		"stackVerticalPadding":    float64(12),
+		"stackHorizontalPadding":  float64(16),
+	})
+	spec := TranslateLayout(symmetric)
+	want := ir.PaddingSpec{Top: 12, Right: 16, Bottom: 12, Left: 16}
+	if spec.Padding != want {
+		t.Errorf("symmetric padding = %+v, want %+v", spec.Padding, want)
+	}
+
+	overridden := node(t, 3, "FRAME", "Overridden", map[string]any{
+		"stackMode":               "VERTICAL",
+		"stackVerticalPadding":    float64(14),
+		"stackPaddingBottom":      float64(0),
+		"stackHorizontalPadding":  float64(40),
+		"stackPaddingRight":       float64(40),
+	})
+	spec = TranslateLayout(overridden)
+	want = ir.PaddingSpec{Top: 14, Right: 40, Bottom: 0, Left: 40}
+	if spec.Padding != want {
+		t.Errorf("overridden padding = %+v, want %+v", spec.Padding, want)
+	}
+}

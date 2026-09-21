@@ -303,7 +303,6 @@ func (n *Node) inlineStyleRefs() []inlineStyleRef {
 
 // layoutFields are the node properties that describe an auto layout frame.
 var layoutFields = []string{
-	"paddingLeft", "paddingRight", "paddingTop", "paddingBottom",
 	"itemSpacing", "cornerRadius",
 	"rectangleCornerTopLeftRadius", "rectangleCornerTopRightRadius",
 	"rectangleCornerBottomLeftRadius", "rectangleCornerBottomRightRadius",
@@ -336,8 +335,49 @@ func layoutInfo(n *Node) map[string]any {
 			info["counterAxisAlignItems"] = v
 		}
 	}
-	if sp := asString(m["sizingMode"]); sp != "" {
-		info["sizingMode"] = sp
+	// Sizing. Newer .fig stores per-axis sizing as stackPrimarySizing /
+	// stackCounterSizing using the StackSize enum (FIXED, RESIZE_TO_FIT,
+	// RESIZE_TO_FIT_WITH_IMPLICIT_SIZE); older producers expose sizingMode /
+	// primaryAxisSizingMode / counterAxisSizingMode. Both are normalized to the
+	// IR vocabulary; an axis the file never declared stays empty.
+	if v := stackSize(first(m, "stackPrimarySizing", "primaryAxisSizingMode", "sizingMode")); v != "" {
+		info["primaryAxisSizingMode"] = v
+	}
+	if v := stackSize(first(m, "stackCounterSizing", "counterAxisSizingMode")); v != "" {
+		info["counterAxisSizingMode"] = v
+	}
+	// Min/max size are OptionalVector {value:{x,y}} pairs, not flat fields.
+	for _, s := range []struct{ size, width, height string }{
+		{"minSize", "minWidth", "minHeight"},
+		{"maxSize", "maxWidth", "maxHeight"},
+	} {
+		v := asMap(asMap(m[s.size])["value"])
+		if v == nil {
+			continue
+		}
+		if x := asFloat(v["x"]); x > 0 {
+			info[s.width] = x
+		}
+		if y := asFloat(v["y"]); y > 0 {
+			info[s.height] = y
+		}
+	}
+	// Padding. Newer .fig stores a base per orientation as
+	// stackVerticalPadding (top) and stackHorizontalPadding (left), with
+	// optional right/bottom overrides that may be zero; legacy files use the
+	// flat padding* fields.
+	padTop, padBottom := padAxis(m, "stackVerticalPadding", "stackPaddingTop", "stackPaddingBottom", "paddingTop", "paddingBottom")
+	padLeft, padRight := padAxis(m, "stackHorizontalPadding", "stackPaddingLeft", "stackPaddingRight", "paddingLeft", "paddingRight")
+	for _, p := range []struct {
+		key string
+		val float64
+	}{
+		{"paddingTop", padTop}, {"paddingRight", padRight},
+		{"paddingBottom", padBottom}, {"paddingLeft", padLeft},
+	} {
+		if p.val > 0 {
+			info[p.key] = p.val
+		}
 	}
 	for _, field := range layoutFields {
 		if v := firstFloat(m, field, stackField(field)); v > 0 {
@@ -372,7 +412,7 @@ func layoutInfo(n *Node) map[string]any {
 }
 
 // stackField maps a layout field to its stack* sibling used by newer .fig
-// producers (itemSpacing → stackSpacing, paddingLeft → stackPaddingLeft).
+// producers (itemSpacing → stackSpacing, cornerRadius → stackCornerRadius).
 func stackField(field string) string {
 	switch field {
 	case "itemSpacing":
@@ -380,8 +420,37 @@ func stackField(field string) string {
 	case "cornerRadius":
 		return "stackCornerRadius"
 	}
-	if length := len(field); length > 7 && field[:7] == "padding" {
-		return "stackPadding" + field[7:]
+	return ""
+}
+
+// padAxis resolves one padding axis. The base value applies to both edges; an
+// explicit near-edge override wins for the first edge and an explicit far-edge
+// override (which may legitimately be zero) wins for the second. Legacy flat
+// padding* fields are accepted as fallbacks.
+func padAxis(m map[string]any, base, start, end, legacyStart, legacyEnd string) (float64, float64) {
+	first := asFloat(m[base])
+	if v := firstFloat(m, start, legacyStart); v > 0 {
+		first = v
+	}
+	last := asFloat(m[base])
+	if v, ok := m[end]; ok {
+		last = asFloat(v)
+	} else if v, ok := m[legacyEnd]; ok {
+		last = asFloat(v)
+	}
+	return first, last
+}
+
+// stackSize normalizes a sizing mode to FIXED, HUG or FILL. Newer .fig files
+// use the StackSize enum; older ones use the legacy sizingMode spellings.
+func stackSize(v string) string {
+	switch strings.ToUpper(v) {
+	case "FIXED", "RESIZE_TO_FIXED_SIZE":
+		return "FIXED"
+	case "AUTO", "HUG", "RESIZE_TO_FIT", "RESIZE_TO_FIT_WITH_IMPLICIT_SIZE":
+		return "HUG"
+	case "FILL", "RESIZE_TO_FILL":
+		return "FILL"
 	}
 	return ""
 }

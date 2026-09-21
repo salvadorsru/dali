@@ -62,26 +62,13 @@ func TranslateLayout(node *model.Node) ir.LayoutSpec {
 		spec.Gap = g
 	}
 
-	// Padding
+	// Padding. model.Layout() already normalizes stack* and legacy padding
+	// fields to paddingTop / paddingRight / paddingBottom / paddingLeft.
 	spec.Padding = ir.PaddingSpec{
 		Top:    asFloat(info["paddingTop"]),
 		Right:  asFloat(info["paddingRight"]),
 		Bottom: asFloat(info["paddingBottom"]),
 		Left:   asFloat(info["paddingLeft"]),
-	}
-	if spec.Padding.Top == 0 && spec.Padding.Right == 0 && spec.Padding.Bottom == 0 && spec.Padding.Left == 0 {
-		if sp := asFloat(info["stackPaddingTop"]); sp > 0 {
-			spec.Padding.Top = sp
-		}
-		if sp := asFloat(info["stackPaddingRight"]); sp > 0 {
-			spec.Padding.Right = sp
-		}
-		if sp := asFloat(info["stackPaddingBottom"]); sp > 0 {
-			spec.Padding.Bottom = sp
-		}
-		if sp := asFloat(info["stackPaddingLeft"]); sp > 0 {
-			spec.Padding.Left = sp
-		}
 	}
 
 	// Alignment
@@ -96,17 +83,17 @@ func TranslateLayout(node *model.Node) ir.LayoutSpec {
 		spec.AlignItems = translateAlign(a)
 	}
 
-	// Sizing
-	if sp := asString(info["sizingMode"]); sp != "" {
-		switch sp {
-		case "HUG":
-			spec.PrimaryAxisSizing = "HUG"
-		case "FIXED":
-			spec.PrimaryAxisSizing = "FIXED"
-		case "FILL":
-			spec.PrimaryAxisSizing = "FILL"
-		}
-	}
+	// Sizing. model.Layout() normalizes the raw .fig fields per axis: FIXED
+	// needs the rendered box, HUG maps to fit-content and FILL stretches along
+	// the parent's main axis. An axis the file never declared stays empty.
+	spec.PrimaryAxisSizing = asString(info["primaryAxisSizingMode"])
+	spec.CounterAxisSizing = asString(info["counterAxisSizingMode"])
+
+	// Absolute rendered dimensions from the node's bounding box. FIXED sizing
+	// needs these to emit w-[Npx] / h-[Npx]; HUG and FILL nodes also carry a
+	// box, but the generated classes only rely on them when sizing is FIXED.
+	spec.Width = node.Width
+	spec.Height = node.Height
 
 	// Corner radius
 	if cr := asFloat(info["cornerRadius"]); cr > 0 {
@@ -248,6 +235,8 @@ func LayoutToTailwind(spec ir.LayoutSpec) string {
 	}
 
 	// Sizing
+	//
+	// Primary axis: HUG → h-fit / w-fit, FILL → flex-1, FIXED → h-[Npx] / w-[Npx].
 	switch spec.PrimaryAxisSizing {
 	case "HUG":
 		if spec.Direction == "column" {
@@ -256,10 +245,31 @@ func LayoutToTailwind(spec ir.LayoutSpec) string {
 			classes = append(classes, "w-fit")
 		}
 	case "FILL":
+		classes = append(classes, "flex-1")
+	case "FIXED":
 		if spec.Direction == "column" {
-			classes = append(classes, "flex-1")
+			classes = append(classes, fmt.Sprintf("h-[%gpx]", spec.Height))
 		} else {
-			classes = append(classes, "flex-1")
+			classes = append(classes, fmt.Sprintf("w-[%gpx]", spec.Width))
+		}
+	}
+
+	// Counter axis: HUG → w-fit / h-fit (perpendicular), FILL → self-stretch,
+	// FIXED → w-[Npx] / h-[Npx] (perpendicular).
+	switch spec.CounterAxisSizing {
+	case "HUG":
+		if spec.Direction == "column" {
+			classes = append(classes, "w-fit")
+		} else {
+			classes = append(classes, "h-fit")
+		}
+	case "FILL":
+		classes = append(classes, "self-stretch")
+	case "FIXED":
+		if spec.Direction == "column" {
+			classes = append(classes, fmt.Sprintf("w-[%gpx]", spec.Width))
+		} else {
+			classes = append(classes, fmt.Sprintf("h-[%gpx]", spec.Height))
 		}
 	}
 
