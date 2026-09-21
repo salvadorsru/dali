@@ -2,6 +2,7 @@ package query
 
 import (
 	"strings"
+	"unicode"
 
 	"github.com/salvadorsru/dali/model"
 )
@@ -29,13 +30,24 @@ type NodeRef struct {
 }
 
 func (s *Service) Search(query string, limit int) ([]Result, error) {
-	match := ftsQuery(query)
-	if match == "" {
+	strict, relaxed := ftsMatch(query)
+	if strict == "" {
 		return nil, nil
 	}
 	if limit <= 0 {
 		limit = 50
 	}
+	out, err := s.match(strict, limit)
+	if err != nil {
+		return nil, err
+	}
+	if len(out) == 0 && relaxed != "" && relaxed != strict {
+		return s.match(relaxed, limit)
+	}
+	return out, nil
+}
+
+func (s *Service) match(match string, limit int) ([]Result, error) {
 	rows, err := s.sql.Query(
 		`SELECT node_id, bm25(text_search) FROM text_search
 		 WHERE text_search MATCH ? ORDER BY bm25(text_search) LIMIT ?`, match, limit)
@@ -147,15 +159,88 @@ func formatPath(path []*model.Node) string {
 	return strings.Join(names, " > ")
 }
 
-// ftsQuery turns free text into a safe FTS5 match expression.
-func ftsQuery(query string) string {
-	fields := strings.Fields(query)
-	if len(fields) == 0 {
-		return ""
+// ftsMatch turns free text into two FTS5 match expressions: strict (bare words
+// matched by prefix, quoted groups matched as exact phrases, all required) and
+// relaxed (the same terms OR-ed), used as a fallback when strict finds nothing.
+func ftsMatch(query string) (strict, relaxed string) {
+	terms := ftsTerms(query)
+	if len(terms) == 0 {
+		return "", ""
 	}
-	quoted := make([]string, 0, len(fields))
-	for _, f := range fields {
-		quoted = append(quoted, `"`+strings.ReplaceAll(f, `"`, `""`)+`"`)
+	parts := make([]string, 0, len(terms))
+	for _, t := range terms {
+		if t.phrase {
+			parts = append(parts, `"`+t.text+`"`)
+		} else {
+			parts = append(parts, t.text+"*")
+		}
 	}
-	return strings.Join(quoted, " ")
+	strict = strings.Join(parts, " ")
+	if len(parts) == 1 {
+		return strict, parts[0]
+	}
+	return strict, "(" + strings.Join(parts, " OR ") + ")"
+}
+
+type ftsTerm struct {
+	text   string
+	phrase bool
+}
+
+// ftsTerms splits a query into ordered terms. Bare words are split on
+// non-letter/digit, so hyphenated and punctuated text stays searchable instead
+// of leaking FTS5 syntax into the match expression.
+func ftsTerms(query string) []ftsTerm {
+	var terms []ftsTerm
+	add := func(s string, phrase bool) {
+		if s != "" {
+			terms = append(terms, ftsTerm{text: s, phrase: phrase})
+		}
+	}
+	for i := 0; i < len(query); {
+		switch {
+		case query[i] == ' ':
+			i++
+		case query[i] == '"':
+			rest := query[i+1:]
+			phrase := rest
+			if end := strings.IndexByte(rest, '"'); end >= 0 {
+				phrase = rest[:end]
+				i += end + 2
+			} else {
+				i = len(query)
+			}
+			add(strings.Join(scanWords(phrase), " "), true)
+		default:
+			j := i
+			for j < len(query) && query[j] != ' ' && query[j] != '"' {
+				j++
+			}
+			for _, w := range scanWords(query[i:j]) {
+				add(w, false)
+			}
+			i = j
+		}
+	}
+	return terms
+}
+
+func scanWords(s string) []string {
+	var out []string
+	var b strings.Builder
+	flush := func() {
+		if b.Len() > 0 {
+			out = append(out, b.String())
+			b.Reset()
+		}
+	}
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(r)
+			continue
+		}
+		flush()
+	}
+	flush()
+	return out
 }

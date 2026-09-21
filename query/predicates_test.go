@@ -19,15 +19,3 @@ func TestUnquote(t *testing.T) {
 		t.Fatalf("unquote = %q", got)
 	}
 }
-
-func TestFTSQuery(t *testing.T) {
-	if got := ftsQuery("checkout button"); got != `"checkout" "button"` {
-		t.Fatalf("ftsQuery = %q", got)
-	}
-	if got := ftsQuery(`a"b`); got != `"a""b"` {
-		t.Fatalf("ftsQuery = %q", got)
-	}
-	if got := ftsQuery("   "); got != "" {
-		t.Fatalf("ftsQuery = %q", got)
-	}
-}
