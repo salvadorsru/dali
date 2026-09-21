@@ -360,6 +360,72 @@ func TestTokens(t *testing.T) {
 	}
 }
 
+// TestGenerate renders a component as HTML+Tailwind plus tokens, returned
+// inline for the caller to write into its own project.
+func TestGenerate(t *testing.T) {
+	if _, err := os.Stat(sample); err != nil {
+		t.Skip("sample fig not present")
+	}
+
+	ctx := context.Background()
+	ct, st := mcp.NewInMemoryTransports()
+	srv, h := newServer(sample)
+	defer h.close()
+	go srv.Run(ctx, st)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+	session, err := client.Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+
+	res, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "find_components",
+		Arguments: map[string]any{"name": ""},
+	})
+	if err != nil || res.IsError {
+		t.Fatalf("find_components: %v %+v", err, res)
+	}
+	var comps componentsOutput
+	if err := json.Unmarshal([]byte(textOf(res)), &comps); err != nil {
+		t.Fatalf("find_components parse: %v", err)
+	}
+	if len(comps.Components) == 0 {
+		t.Fatal("no components in sample")
+	}
+
+	res, err = session.CallTool(ctx, &mcp.CallToolParams{
+		Name: "generate_figma",
+		Arguments: map[string]any{
+			"component": comps.Components[0].ID,
+			"tokens":    "css",
+		},
+	})
+	if err != nil || res.IsError {
+		t.Fatalf("generate_figma: %v %+v body=%q", err, res, textOf(res))
+	}
+	var out generateOutput
+	if err := json.Unmarshal([]byte(textOf(res)), &out); err != nil {
+		t.Fatalf("generate_figma parse: %v", err)
+	}
+	if len(out.Files) < 2 { // component html + tokens.css
+		t.Fatalf("generate_figma files = %+v", out.Files)
+	}
+	var componentHTML bool
+	for _, f := range out.Files {
+		if f.Code == "" {
+			t.Fatalf("empty code for %s", f.Path)
+		}
+		if filepath.Ext(f.Path) == ".html" {
+			componentHTML = true
+		}
+	}
+	if !componentHTML {
+		t.Fatalf("no html component generated: %+v", out.Files)
+	}
+}
+
 // TestLayoutOf verifies layout extraction is case-insensitive and picks the
 // LAYOUT style summary.
 func TestLayoutOf(t *testing.T) {

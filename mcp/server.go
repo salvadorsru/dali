@@ -109,6 +109,7 @@ func registerTools(s *mcp.Server, h *handlers) {
 	mcp.AddTool(s, &mcp.Tool{Name: "get_usages", Description: "List every page placement of a component."}, h.getUsages)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_dependents", Description: "Impact analysis: the top-level containers (screens) that place a component, with aggregated placement counts, ordered by usage."}, h.getDependents)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_component", Description: "Get the codegen contract of a component: variants, direct children, accepted props and placement count."}, h.getComponent)
+	mcp.AddTool(s, &mcp.Tool{Name: "generate_figma", Description: "Generate HTML+Tailwind code for components and optional design tokens, returned inline for you to write into the project. Omit component to generate every component, or set component to a single id."}, h.generateFigma)
 	mcp.AddTool(s, &mcp.Tool{Name: "variables", Description: "List design tokens (variables) with their values per mode, optionally filtered by name substring."}, h.variables)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_stats", Description: "Summarize the document: node counts by type, page and node totals."}, h.getStats)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_pages", Description: "List the pages (canvases) of the document in order."}, h.listPages)
