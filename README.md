@@ -278,6 +278,7 @@ fig passed to `dali mcp` and then to the single `.fig` in the working directory.
 | `get_fonts` / `get_styles` | List fonts / styles, optionally filtered by name or kind. |
 | `get_tokens` | Aggregate tokens: colour palette, variables, fonts, text classes, layouts. |
 | `get_usages` / `get_component` | Component placements / codegen contract (variants, props). |
+| `get_dependents` | Impact analysis: which screens place a component. |
 | `find_text` | Search text content of TEXT nodes. |
 | `variables` | List design tokens with values per mode. |
 | `get_stats` / `list_pages` | Document summary / pages in document order. |

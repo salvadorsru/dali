@@ -341,6 +341,15 @@ func TestTokens(t *testing.T) {
 		t.Fatalf("get_usages component = %+v", uses.Component)
 	}
 
+	body = call("get_dependents", map[string]any{"id": cid})
+	var deps dependentsOutput
+	if err := json.Unmarshal([]byte(body), &deps); err != nil {
+		t.Fatalf("get_dependents parse: %v", err)
+	}
+	if deps.Component.ID != cid {
+		t.Fatalf("get_dependents component = %+v", deps.Component)
+	}
+
 	body = call("get_component", map[string]any{"id": cid})
 	var comp componentOutput
 	if err := json.Unmarshal([]byte(body), &comp); err != nil {

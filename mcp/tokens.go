@@ -125,6 +125,41 @@ func (h *handlers) getUsages(ctx context.Context, req *mcp.CallToolRequest, in u
 	return nil, out, nil
 }
 
+type dependentsInput struct {
+	File string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
+	ID   string `json:"id" jsonschema:"component id, e.g. 654:10967"`
+}
+
+type dependentsOutput struct {
+	Component  NodeRef           `json:"component"`
+	Containers []query.Dependent `json:"containers"`
+}
+
+// getDependents lists the top-level containers (screens) that place a
+// component, ordered by placement count descending, for impact analysis.
+func (h *handlers) getDependents(ctx context.Context, req *mcp.CallToolRequest, in dependentsInput) (*mcp.CallToolResult, dependentsOutput, error) {
+	svc, err := h.service(in.File, newNotifier(ctx, req))
+	if err != nil {
+		return nil, dependentsOutput{}, err
+	}
+	n, err := svc.Node(in.ID)
+	if err != nil {
+		return nil, dependentsOutput{}, err
+	}
+	if n == nil {
+		return nil, dependentsOutput{}, fmt.Errorf("node %q not found", in.ID)
+	}
+	containers, err := svc.Dependents(in.ID)
+	if err != nil {
+		return nil, dependentsOutput{}, err
+	}
+	out := dependentsOutput{Component: toRef(n), Containers: containers}
+	if out.Containers == nil {
+		out.Containers = []query.Dependent{}
+	}
+	return nil, out, nil
+}
+
 type componentProp struct {
 	ID    string `json:"id"`
 	Value any    `json:"value"`

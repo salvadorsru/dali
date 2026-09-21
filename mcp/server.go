@@ -107,6 +107,7 @@ func registerTools(s *mcp.Server, h *handlers) {
 	mcp.AddTool(s, &mcp.Tool{Name: "get_styles", Description: "List style definitions (name, kind, resolved value, usage count), optionally filtered by name or kind, or without the raw payload."}, h.getStyles)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_tokens", Description: "Aggregate design tokens: solid colour palette, colour variables, fonts, text classes and flex layouts, ranked by usage."}, h.getTokens)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_usages", Description: "List every page placement of a component."}, h.getUsages)
+	mcp.AddTool(s, &mcp.Tool{Name: "get_dependents", Description: "Impact analysis: the top-level containers (screens) that place a component, with aggregated placement counts, ordered by usage."}, h.getDependents)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_component", Description: "Get the codegen contract of a component: variants, direct children, accepted props and placement count."}, h.getComponent)
 	mcp.AddTool(s, &mcp.Tool{Name: "variables", Description: "List design tokens (variables) with their values per mode, optionally filtered by name substring."}, h.variables)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_stats", Description: "Summarize the document: node counts by type, page and node totals."}, h.getStats)
