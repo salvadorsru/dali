@@ -63,34 +63,149 @@ The same `query.Service` powers the CLI and the MCP server.
 Core pipeline: `kiwi/` → `parser/` → `model/` → `index/` → `query/`, plus
 `embed/`, `semantic/`, `mcp/` and `cmd/dali/`.
 
-## Quickstart
+## Installation
+
+### Prebuilt binary
+
+Requires only `sh` and `curl`. The latest release is downloaded, its checksum
+verified, and the binary installed into `~/.local/bin`:
 
 ```bash
-# build
-go build -o dali ./cmd/dali
-
-# index a design
-./dali design.fig index
-
-# structural search
-./dali design.fig query 'type=FRAME name~"card"'
-./dali design.fig xpath '//FRAME[@name~"card"]'
-
-# full-text
-./dali design.fig search "payment"
-
-# semantic (builds the vector index first)
-./dali design.fig semantic "checkout flow" --embeddings --yes
-
-# lint + geometry
-./dali design.fig lint --preset accessibility
-./dali design.fig analyze --mode overlaps
-
-# codegen
-./dali design.fig generate
-./dali design.fig generate --component 1:123 --out ./components
-./dali design.fig generate --tokens css
+curl -fsSL https://raw.githubusercontent.com/salvadorsru/dali/master/install.sh | sh
 ```
+
+Environment knobs: `DALI_BIN` overrides the install directory, `DALI_VERSION`
+pins a release tag, `DALI_REPO` targets a fork:
+
+```bash
+DALI_VERSION=v1.2.0 DALI_BIN=$HOME/bin sh install.sh
+```
+
+If the install directory is not on your `PATH`, add it:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Verify the install:
+
+```bash
+dali version
+```
+
+### From source
+
+Requires Go. Clone and build:
+
+```bash
+git clone https://github.com/salvadorsru/dali
+cd dali
+go build -o dali ./cmd/dali
+```
+
+or install straight from the module:
+
+```bash
+go install github.com/salvadorsru/dali/cmd/dali@latest
+```
+
+## Usage
+
+The general form is:
+
+```bash
+dali [<file.fig>] <command> [args]
+```
+
+The file is optional: when omitted, Dalí uses the single `.fig` in the current
+directory (`dali .` does the same). The first command builds the
+`.dali/<name>.db` index on demand — a SQLite index that is rebuilt
+automatically whenever the source file changes. The `.fig` itself is never
+modified.
+
+### Orient yourself
+
+```bash
+dali design.fig inspect       # document counts
+dali design.fig components    # list components
+dali design.fig fonts         # fonts in use, ranked by count
+dali design.fig variables     # design tokens (variables) per mode
+dali design.fig styles        # style definitions: kind, value, usage
+dali design.fig assets        # image assets
+```
+
+### Explore the tree
+
+```bash
+dali design.fig path 123:456        # root-to-node path
+dali design.fig context 123:456     # path, parent, children, styles, assets
+dali design.fig children 123:456    # direct children
+dali design.fig parent 123:456      # parent node
+dali design.fig subtree 123:456     # whole subtree (--depth N to cap it)
+dali design.fig node 123:456        # one node's geometry and styles
+```
+
+### Search
+
+Full-text over node names and text content:
+
+```bash
+dali design.fig search "payment"
+dali design.fig search "card" --limit 20
+```
+
+Structural queries, as a DSL or XPath subset:
+
+```bash
+dali design.fig query 'type=FRAME name~"card"'
+dali design.fig query 'text~price AND width>=200'
+dali design.fig xpath '//FRAME[@name~"card"]'
+```
+
+The DSL terms combine with `AND`: `type=`, `name~`, `text~`, `font=`,
+`page~`, `component=`, `visible=`, `width>=`, `height<=`, `descendants()`.
+When nothing matches, Dalí suggests near-miss names.
+
+Semantic search for conceptual queries — it builds the vector index on first
+run and needs a download confirmed once (skip the prompt with `--yes` or
+`DALI_EMBED_YES=1`):
+
+```bash
+dali design.fig semantic-search "checkout flow"
+dali design.fig semantic-search "checkout flow" --hybrid --limit 10
+```
+
+See [Semantic search](#semantic-search) for how the local embedding server
+works.
+
+### Lint and geometry
+
+```bash
+dali design.fig lint --preset recommended   # recommended | strict | accessibility
+dali design.fig analyze spacing             # spacing | clusters | overlaps
+dali design.fig analyze overlaps --min-ratio 0.3
+```
+
+### Code generation
+
+```bash
+dali design.fig generate                          # all components into ./generated
+dali design.fig generate --id 1:123 --out ./components
+dali design.fig generate --name "VideoCaption" --out ./components
+dali design.fig generate --tokens css             # css | style-dict | figma
+```
+
+### Assets
+
+```bash
+dali design.fig assets           # list assets
+dali design.fig extract-assets   # write them to design.assets/images/
+```
+
+### Global flags
+
+`--json` prints machine-readable output, `--yes` skips download prompts, and
+`-q`/`--quiet` hides progress. `dali --help` lists every command and flag.
 
 ## MCP
 
