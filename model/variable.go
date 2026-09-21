@@ -19,7 +19,6 @@ type Variable struct {
 type VariableMode struct {
 	Mode  string `json:"mode"`
 	Value string `json:"value"`
-	Raw   any    `json:"raw,omitempty"`
 }
 
 // collectVariables assembles the document's variables from VARIABLE and
@@ -77,9 +76,7 @@ func collectVariables(d *Document) []Variable {
 			if vd == nil {
 				continue
 			}
-			vm := VariableMode{Mode: name}
-			vm.Raw = vd["value"]
-			vm.Value = variableValueString(vd["value"])
+			vm := VariableMode{Mode: name, Value: variableValueString(vd["value"])}
 			v.Modes = append(v.Modes, vm)
 		}
 		out = append(out, v)

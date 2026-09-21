@@ -88,8 +88,6 @@ type PropOverride struct {
 
 func (n *Node) IsComponent() bool { return n.Type.IsComponent() }
 
-func (n *Node) IsText() bool { return n.Type == TypeText }
-
 // LineHeightPx resolves the node's line height to pixels; RAW and PERCENT
 // units scale by the font size, PIXELS (or unset) are already absolute.
 func (n *Node) LineHeightPx() float64 {
@@ -106,6 +104,3 @@ func resolveLineHeight(value, fontSize float64, units string) float64 {
 		return value
 	}
 }
-
-// Symbol resolves the component an instance instantiates.
-func (n *Node) Symbol() *Node { return n.symbol }

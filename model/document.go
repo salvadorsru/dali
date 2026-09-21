@@ -279,21 +279,18 @@ func propID(v any) string {
 }
 
 func numValue(v any) int64 {
-	switch n := v.(type) {
-	case int32, uint32, int64, uint64, float32, float64:
-		return asInt(v)
-	case string:
-		n = strings.TrimLeft(n, "0")
-		if n == "" {
+	if s, ok := v.(string); ok {
+		s = strings.TrimLeft(s, "0")
+		if s == "" {
 			return 0
 		}
-		i, err := strconv.ParseInt(n, 10, 64)
+		i, err := strconv.ParseInt(s, 10, 64)
 		if err != nil {
 			return 0
 		}
 		return i
 	}
-	return 0
+	return asInt(v)
 }
 
 func propValue(v any) any {
@@ -336,28 +333,6 @@ func varValue(v any) any {
 		}
 	}
 	return va
-}
-
-func byteValue(v any) byte {
-	switch n := v.(type) {
-	case byte:
-		return n
-	case int:
-		return byte(n)
-	case int32:
-		return byte(n)
-	case uint32:
-		return byte(n)
-	case int64:
-		return byte(n)
-	case uint64:
-		return byte(n)
-	case float64:
-		return byte(n)
-	case float32:
-		return byte(n)
-	}
-	return 0
 }
 
 // rotationDeg reports the node's rotation in degrees, derived from its 2D

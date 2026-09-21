@@ -67,7 +67,7 @@ func TestResolveInstanceClone(t *testing.T) {
 	}, nil)
 
 	instNode, _ := doc.Node("0:200")
-	if instNode.Symbol() == nil {
+	if instNode.symbol == nil {
 		t.Fatal("instance symbol not linked")
 	}
 	children := doc.Children("0:200")
