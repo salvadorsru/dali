@@ -55,6 +55,13 @@ func OpenNotify(figPath string, force bool, building func()) (*Service, error) {
 	return &Service{db: db, sql: db.SQL(), rebuilt: rebuilt, ranker: RRF{}}, nil
 }
 
+// Bind wraps an existing index for read queries without rebuilding from a
+// fig file. The index must have been populated already; the caller owns and
+// must Close it.
+func Bind(db *index.DB) *Service {
+	return &Service{db: db, sql: db.SQL(), ranker: RRF{}}
+}
+
 func (s *Service) Close() error { return s.db.Close() }
 
 // Rebuilt reports whether the structural index was rebuilt by the last Open.
