@@ -2,6 +2,7 @@ package html
 
 import (
 	"fmt"
+	stdhtml "html"
 	"strings"
 
 	"github.com/salvadorsru/dali/codegen/ir"
@@ -18,12 +19,19 @@ func (g *HTMLGenerator) GenerateComponent(spec ir.ComponentSpec, tokens ir.Token
 
 	name := util.SanitizeComponentName(spec.Name)
 
-	// CSS variables for this component
-	b.WriteString(":root {\n")
-	b.WriteString(util.LayoutToCSSVars(spec.Layout, fmt.Sprintf("comp-%s", strings.ToLower(name))))
-	b.WriteString("\n")
-	b.WriteString(util.StyleToCSSVars(spec.Styles, fmt.Sprintf("comp-%s", strings.ToLower(name))))
-	b.WriteString("\n}\n\n")
+	// CSS variables for this component.
+	//
+	// Figma emits gap / padding / stroke / corner tokens as CSS custom properties
+	// scoped under :root prefixed with "comp-<name>". When a component carries no
+	// such variables (e.g. a frame with no gap and no fills), the :root block
+	// would be empty; skip it to keep the output tight.
+	croot := util.LayoutToCSSVars(spec.Layout, fmt.Sprintf("comp-%s", strings.ToLower(name)))
+	croot += util.StyleToCSSVars(spec.Styles, fmt.Sprintf("comp-%s", strings.ToLower(name)))
+	if strings.TrimSpace(croot) != "" {
+		b.WriteString(":root {\n")
+		b.WriteString(croot)
+		b.WriteString("\n}\n\n")
+	}
 
 	// HTML template - render first child as root, or component itself
 	b.WriteString("<!-- Component: " + spec.Name + " -->\n")
@@ -109,17 +117,17 @@ func (g *HTMLGenerator) renderElement(spec ir.NodeSpec, indent string) string {
 			for _, run := range spec.Text.Runs {
 				runStyle := util.TextRunToTailwind(run)
 				if runStyle != "" {
-					b.WriteString(fmt.Sprintf("%s<span style=\"%s\">%s</span>\n", textIndent, runStyle, run.Text))
+					b.WriteString(fmt.Sprintf("%s<span style=\"%s\">%s</span>\n", textIndent, runStyle, stdhtml.EscapeString(run.Text)))
 				} else {
-					b.WriteString(fmt.Sprintf("%s%s\n", textIndent, run.Text))
+					b.WriteString(fmt.Sprintf("%s%s\n", textIndent, stdhtml.EscapeString(run.Text)))
 				}
 			}
 		} else {
 			textClasses := util.TextToTailwind(spec.Text)
 			if textClasses != "" {
-				b.WriteString(fmt.Sprintf("%s<span class=\"%s\">%s</span>\n", textIndent, textClasses, spec.Text.Content))
+				b.WriteString(fmt.Sprintf("%s<span class=\"%s\">%s</span>\n", textIndent, textClasses, stdhtml.EscapeString(spec.Text.Content)))
 			} else {
-				b.WriteString(fmt.Sprintf("%s%s\n", textIndent, spec.Text.Content))
+				b.WriteString(fmt.Sprintf("%s%s\n", textIndent, stdhtml.EscapeString(spec.Text.Content)))
 			}
 		}
 	}
