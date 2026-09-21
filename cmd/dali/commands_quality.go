@@ -6,7 +6,6 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/salvadorsru/dali/export"
 	"github.com/salvadorsru/dali/model"
 	"github.com/salvadorsru/dali/output"
 	"github.com/salvadorsru/dali/parser"
@@ -131,46 +130,4 @@ func cmdAnalyze(args []string) error {
 		output.Table(os.Stdout, []string{"A", "B", "PAGE", "OVERLAP"}, rows)
 	}
 	return nil
-}
-
-func cmdExport(args []string) error {
-	format, err := arg(args, 0, "format")
-	if err != nil {
-		return err
-	}
-	fs := flag.NewFlagSet("export", flag.ContinueOnError)
-	outputPath := fs.String("output", "", "write to file instead of stdout")
-	page := fs.String("page", "", "export one page by id")
-	root := fs.String("root", "", "export one node subtree by id")
-	if err := fs.Parse(args[1:]); err != nil {
-		return err
-	}
-	p, err := openParsed()
-	if err != nil {
-		return err
-	}
-	defer p.File.Close()
-
-	opts := export.ExportOptions{PageID: *page, RootID: *root}
-	var data []byte
-	switch format {
-	case "svg":
-		data, err = export.SVG(p.Doc, p.File, opts)
-	case "html":
-		data, err = export.HTML(p.Doc, p.File, opts)
-	default:
-		return fmt.Errorf("unknown format %q (svg, html)", format)
-	}
-	if err != nil {
-		return err
-	}
-	if *outputPath != "" {
-		if err := os.WriteFile(*outputPath, data, 0o644); err != nil {
-			return err
-		}
-		fmt.Printf("exported %q (%d bytes)\n", *outputPath, len(data))
-		return nil
-	}
-	_, err = os.Stdout.Write(data)
-	return err
 }

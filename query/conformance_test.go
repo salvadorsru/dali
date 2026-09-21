@@ -9,10 +9,10 @@ import (
 )
 
 // TestConformanceModelIndex pins the two read paths to the same document: the
-// in-memory model (parser.Open + model.Build, used by quality and export) and
-// the SQLite index (query.Service). They are separate pipelines on purpose —
-// quality/export stay fresh, query stays indexed — so this test is what keeps
-// them from silently drifting apart.
+// in-memory model (parser.Open + model.Build, used by quality) and the SQLite
+// index (query.Service). They are separate pipelines on purpose — quality
+// stays fresh, query stays indexed — so this test is what keeps them from
+// silently drifting apart.
 func TestConformanceModelIndex(t *testing.T) {
 	spec := testdoc.Spec{
 		Pages: 3, FramesPerPage: 12, TextsPerFrame: 2, VectorsPerFrame: 2,

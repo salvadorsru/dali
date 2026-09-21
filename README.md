@@ -29,7 +29,6 @@ the source of truth; everything else is a rebuildable local index.
 - Incremental: only changed nodes are re-embedded.
 - MCP server for AI agents, serving many designs from one process.
 - Design linting and geometry analysis (spacing, clusters, overlaps).
-- SVG/HTML export of the document, a page or a subtree.
 - Component code generation: HTML + Tailwind plus design tokens.
 - Image asset extraction.
 - No CGO. SQLite and `sqlite-vec` are pure Go; embeddings use a managed
@@ -100,7 +99,6 @@ progress), `--no-color`.
 | `xpath <expr>` | XPath subset over the tree (`/`, `//`, `*`, `@name=`, `@name~`, `contains()`). `--limit`. |
 | `lint [--preset P]` | Design + accessibility checks (`recommended`, `strict`, `accessibility`). |
 | `analyze <kind>` | Geometry stats: `spacing`, `clusters`, `overlaps`. |
-| `export <svg\|html>` | Render pages or a node subtree; `--page`, `--root`, `--output`. |
 | `generate` | Generate HTML + Tailwind from components; `--out`, `--component`, `--tokens`. |
 | `index [--embeddings] [--force]` | Build the structural index; `--embeddings` adds the vector index. |
 | `extract-assets` | Write images to `<base>.assets/images`. |
@@ -175,10 +173,10 @@ piped safely:
 dali design.fig search "checkout" --json | jq '.[0].path'
 ```
 
-## Quality & export
+## Quality & analyze
 
-`lint`, `analyze` and `export` always parse the `.fig` directly (they never rely
-on index staleness).
+`lint` and `analyze` always parse the `.fig` directly (they never rely on index
+staleness).
 
 `lint` reports design-quality and accessibility issues. Presets:
 `recommended` (default), `strict` (promotes warnings to errors), and
@@ -198,15 +196,6 @@ unused-component warn      0:8         IconBtn     ...                component 
 dali design.fig analyze spacing    # most-used layout gaps
 dali design.fig analyze clusters   # repeated node sizes
 dali design.fig analyze overlaps   # intersecting siblings (--min-ratio 0.1)
-```
-
-`export` renders the document (one column per page), or a single page/subtree,
-to a standalone SVG or HTML file:
-
-```bash
-dali design.fig export html --output design.html
-dali design.fig export svg  --page 0:2
-dali design.fig export svg  --root 654:11617 --output card.svg
 ```
 
 Vector geometry, fills, corner radii, clipping, text and embedded images are
@@ -295,7 +284,6 @@ fig passed to `dali mcp` and then to the single `.fig` in the working directory.
 | `list_figs` | List `.fig`/`.deck` files in the current directory. |
 | `lint_figma` | Design + accessibility checks (presets: `recommended`, `strict`, `accessibility`). |
 | `analyze_figma` | Geometry analysis: `spacing`, `clusters`, `overlaps`. |
-| `export_figma` | Render document, page or subtree to SVG/HTML next to the `.fig`. |
 
 ### Configuration
 
@@ -356,7 +344,6 @@ parser.Open ─► kiwi decode ─► model.Build ─► index.Write ─► quer
 | `embed/` | `Embedder` interface, OpenAI-compatible client, managed llama.cpp. |
 | `semantic/` | Semantic text per node and the incremental embedding index. |
 | `quality/` | Design linting and geometry analysis (spacing, clusters, overlaps). |
-| `export/` | SVG/HTML rendering of the document tree. |
 | `codegen/` | HTML + Tailwind code generation and token export. |
 | `assets/` | Image extraction. |
 | `workspace/` | Path layout for the technical `.dali/` directory. |
