@@ -198,26 +198,44 @@ func cmdSubtree(args []string) error {
 			depth = d
 		}
 	}
-	res, err := mcp.SubtreeOf(svc, id, depth)
+	res, err := svc.Subtree(id, depth)
 	if err != nil {
 		return err
 	}
-	if res.Root.ID == "" {
+	root, err := svc.Node(id)
+	if err != nil {
+		return err
+	}
+	if root == nil {
 		return fmt.Errorf("node %q not found", id)
 	}
 	if jsonOut {
-		return output.JSON(os.Stdout, res)
+		out := subtreeOutput{Root: root, Descendants: make([]subtreeEntry, 0, len(res))}
+		for _, it := range res {
+			out.Descendants = append(out.Descendants, subtreeEntry{Node: it.Node, Depth: it.Depth})
+		}
+		return output.JSON(os.Stdout, out)
 	}
-	fmt.Printf("%s %s%s\n", output.Type(res.Root.Type), res.Root.Name, output.Dim(" "+res.Root.ID))
-	for _, d := range res.Descendants {
+	fmt.Printf("%s %s%s\n", output.Type(string(root.Type)), root.Name, output.Dim(" "+root.ID))
+	for _, d := range res {
 		prefix := strings.Repeat("  ", d.Depth) + "└── "
 		extra := ""
 		if d.Node.Text != "" {
 			extra = output.Dim(" " + strconv.Quote(truncate(d.Node.Text, 24)))
 		}
-		fmt.Printf("%s%s %s%s\n", prefix, output.Type(d.Node.Type), d.Node.Name, extra)
+		fmt.Printf("%s%s %s%s\n", prefix, output.Type(string(d.Node.Type)), d.Node.Name, extra)
 	}
 	return nil
+}
+
+type subtreeEntry struct {
+	Node  *model.Node `json:"node"`
+	Depth int         `json:"depth"`
+}
+
+type subtreeOutput struct {
+	Root        *model.Node    `json:"root"`
+	Descendants []subtreeEntry `json:"descendants"`
 }
 
 func cmdComponents(args []string) error {
