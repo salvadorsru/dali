@@ -8,16 +8,18 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/salvadorsru/dali/embed"
-	"github.com/salvadorsru/dali/model"
 	"github.com/salvadorsru/dali/query"
 	"github.com/salvadorsru/dali/semantic"
 )
 
 type searchInput struct {
 	File        string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
+	Mode        string `json:"mode,omitempty" jsonschema:"text (default), semantic or hybrid. text = exact keyword over node names and body text; semantic = conceptual meaning (requires the vector index); hybrid = fuse name/text and vectors when the index exists, falling back to plain text"`
 	Query       string `json:"query" jsonschema:"search text"`
+	Type        string `json:"type,omitempty" jsonschema:"restrict results to a node type, e.g. TEXT, FRAME or COMPONENT"`
+	Page        string `json:"page,omitempty" jsonschema:"restrict to a page by name (semantic and hybrid modes)"`
 	Limit       int    `json:"limit,omitempty" jsonschema:"max results, default 20"`
-	Context     bool   `json:"context,omitempty" jsonschema:"include parent, ancestors and children next to each result"`
+	Context     bool   `json:"context,omitempty" jsonschema:"include parent, ancestors and children next to each result (text mode)"`
 	MaxChildren int    `json:"max_children,omitempty" jsonschema:"max direct children per result when context is on, default 5"`
 }
 
@@ -40,91 +42,86 @@ func (h *handlers) search(ctx context.Context, req *mcp.CallToolRequest, in sear
 	if limit <= 0 {
 		limit = 20
 	}
-	results, err := svc.UnifiedSearch(ctx, nil, query.UnifiedOptions{
+
+	switch in.Mode {
+	case "semantic":
+		out, err := h.searchSemantic(ctx, svc, in, limit)
+		return nil, out, err
+	case "hybrid":
+		out, err := h.searchHybrid(ctx, svc, in, limit)
+		return nil, out, err
+	default:
+		out, err := h.searchText(ctx, svc, in, limit)
+		return nil, out, err
+	}
+}
+
+// searchText is the default full-text search over node names and body text.
+// A Type filter narrows results to a single node kind.
+func (h *handlers) searchText(ctx context.Context, svc *query.Service, in searchInput, limit int) (searchOutput, error) {
+	out := searchOutput{Results: make([]NodeRef, 0, limit)}
+	opts := query.UnifiedOptions{
 		Query:       in.Query,
 		Limit:       limit,
 		Mode:        query.ModeText,
+		Type:        in.Type,
 		Context:     in.Context,
 		MaxChildren: in.MaxChildren,
-	})
+	}
+	if in.Type != "" {
+		// The structural group returns every node of the type, so fetch wide
+		// and filter down to those that actually match the text.
+		opts.Limit = limit * 4
+	}
+	results, err := svc.UnifiedSearch(ctx, nil, opts)
 	if err != nil {
-		return nil, searchOutput{}, err
+		return out, err
 	}
-	out := searchOutput{Results: make([]NodeRef, 0, len(results))}
 	for _, r := range results {
+		if in.Type != "" && r.Type != in.Type {
+			continue
+		}
 		out.Results = append(out.Results, NodeRef{ID: r.ID, Type: r.Type, Name: r.Name, Text: r.Text, Page: r.Page, PagePath: r.Path})
+		if len(out.Results) >= limit {
+			break
+		}
 	}
-	if len(out.Results) == 0 {
+	if len(out.Results) == 0 && in.Type == "" {
 		out.Suggestions = suggest(svc, in.Query)
 	}
-	return nil, out, nil
+	return out, nil
 }
 
-type semanticInput struct {
-	File  string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
-	Query string `json:"query" jsonschema:"conceptual search text"`
-	Limit int    `json:"limit,omitempty" jsonschema:"max results, default 20"`
-	Type  string `json:"type,omitempty" jsonschema:"filter by node type, e.g. COMPONENT"`
-	Page  string `json:"page,omitempty" jsonschema:"filter by page name or id"`
-}
-
-func (h *handlers) semanticSearch(ctx context.Context, req *mcp.CallToolRequest, in semanticInput) (*mcp.CallToolResult, searchOutput, error) {
+// searchSemantic is the pure vector path: it requires both the embedder and
+// the vector index, and never builds embeddings.
+func (h *handlers) searchSemantic(ctx context.Context, svc *query.Service, in searchInput, limit int) (searchOutput, error) {
 	if h.emb == nil {
-		return nil, searchOutput{}, errors.New("embeddings disabled: set DALI_EMBEDDINGS=1 and restart the MCP server to use semantic search")
-	}
-	note := newNotifier(ctx, req)
-	svc, err := h.service(in.File, note)
-	if err != nil {
-		return nil, searchOutput{}, err
+		return searchOutput{}, errors.New("embeddings disabled: set DALI_EMBEDDINGS=1 and restart the MCP server to use semantic search")
 	}
 	if !svc.DB().VecIndexed() {
-		return nil, searchOutput{}, errors.New("vector index missing: call index_embeddings first")
-	}
-	limit := in.Limit
-	if limit <= 0 {
-		limit = 20
+		return searchOutput{}, errors.New("vector index missing: call index_embeddings first")
 	}
 	opts := query.Options{Query: in.Query, Type: in.Type, Limit: limit}
 	if in.Page != "" {
 		id, err := svc.PageByName(in.Page)
 		if err != nil {
-			return nil, searchOutput{}, err
+			return searchOutput{}, err
 		}
 		if id == "" {
-			return nil, searchOutput{}, fmt.Errorf("page %q not found", in.Page)
+			return searchOutput{}, fmt.Errorf("page %q not found", in.Page)
 		}
 		opts.PageID = id
 	}
 	results, err := svc.SemanticSearch(ctx, h.emb, opts)
 	if err != nil {
-		return nil, searchOutput{}, err
+		return searchOutput{}, err
 	}
-	return nil, semanticResults(results), nil
+	return semanticResults(results), nil
 }
 
-type hybridInput struct {
-	File        string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
-	Query       string `json:"query" jsonschema:"search text"`
-	Limit       int    `json:"limit,omitempty" jsonschema:"max results, default 20"`
-	Type        string `json:"type,omitempty" jsonschema:"filter by node type, e.g. COMPONENT"`
-	Page        string `json:"page,omitempty" jsonschema:"filter by page name or id"`
-	Context     bool   `json:"context,omitempty" jsonschema:"include parent, ancestors and children next to each result"`
-	MaxChildren int    `json:"max_children,omitempty" jsonschema:"max direct children per result when context is on, default 5"`
-}
-
-func (h *handlers) hybridSearch(ctx context.Context, req *mcp.CallToolRequest, in hybridInput) (*mcp.CallToolResult, searchOutput, error) {
-	note := newNotifier(ctx, req)
-	svc, err := h.service(in.File, note)
-	if err != nil {
-		return nil, searchOutput{}, err
-	}
-	limit := in.Limit
-	if limit <= 0 {
-		limit = 20
-	}
-	// Hybrid never builds embeddings: vectors are used only when both the
-	// embedder is configured and the vector index already exists. Otherwise,
-	// fall back to full-text so the search still works without a llama.
+// searchHybrid fuses full-text and semantic vectors when a vector index
+// exists, and otherwise falls back to plain text. It never builds embeddings.
+func (h *handlers) searchHybrid(ctx context.Context, svc *query.Service, in searchInput, limit int) (searchOutput, error) {
 	var emb embed.Embedder
 	mode := query.ModeText
 	if h.emb != nil && svc.DB().VecIndexed() {
@@ -142,51 +139,20 @@ func (h *handlers) hybridSearch(ctx context.Context, req *mcp.CallToolRequest, i
 	if in.Page != "" {
 		id, err := svc.PageByName(in.Page)
 		if err != nil {
-			return nil, searchOutput{}, err
+			return searchOutput{}, err
 		}
 		if id == "" {
-			return nil, searchOutput{}, fmt.Errorf("page %q not found", in.Page)
+			return searchOutput{}, fmt.Errorf("page %q not found", in.Page)
 		}
 		opts.PageID = id
 	}
 	results, err := svc.UnifiedSearch(ctx, emb, opts)
 	if err != nil {
-		return nil, searchOutput{}, err
+		return searchOutput{}, err
 	}
 	out := semanticResults(results)
 	out.UsedEmbeddings = mode == query.ModeHybrid
-	return nil, out, nil
-}
-
-func (h *handlers) findText(ctx context.Context, req *mcp.CallToolRequest, in searchInput) (*mcp.CallToolResult, searchOutput, error) {
-	svc, err := h.service(in.File, newNotifier(ctx, req))
-	if err != nil {
-		return nil, searchOutput{}, err
-	}
-	limit := in.Limit
-	if limit <= 0 {
-		limit = 20
-	}
-	results, err := svc.UnifiedSearch(ctx, nil, query.UnifiedOptions{
-		Query: in.Query,
-		Type:  string(model.TypeText),
-		Limit: limit * 4,
-		Mode:  query.ModeText,
-	})
-	if err != nil {
-		return nil, searchOutput{}, err
-	}
-	out := searchOutput{Results: make([]NodeRef, 0, limit)}
-	for _, r := range results {
-		if r.Type != string(model.TypeText) {
-			continue
-		}
-		out.Results = append(out.Results, NodeRef{ID: r.ID, Type: r.Type, Name: r.Name, Text: r.Text, Page: r.Page, PagePath: r.Path})
-		if len(out.Results) >= limit {
-			break
-		}
-	}
-	return nil, out, nil
+	return out, nil
 }
 
 // ensureEmbedded builds missing embeddings and reports progress, so the vector

@@ -98,7 +98,7 @@ func TestEmbeddingGate(t *testing.T) {
 	h := handlerFor(t, nil)
 	ctx := context.Background()
 
-	_, _, err := h.semanticSearch(ctx, callTool("semantic_search_figma"), semanticInput{Query: "payment"})
+	_, _, err := h.search(ctx, callTool("search_figma"), searchInput{Query: "payment", Mode: "semantic"})
 	if err == nil || !strings.Contains(err.Error(), "embeddings disabled") {
 		t.Fatalf("semantic disabled = %v", err)
 	}
@@ -106,7 +106,7 @@ func TestEmbeddingGate(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "embeddings disabled") {
 		t.Fatalf("index disabled = %v", err)
 	}
-	_, out, err := h.hybridSearch(ctx, callTool("hybrid_search_figma"), hybridInput{Query: "menopausia", Limit: 5})
+	_, out, err := h.search(ctx, callTool("search_figma"), searchInput{Query: "menopausia", Mode: "hybrid", Limit: 5})
 	if err != nil {
 		t.Fatalf("hybrid fallback = %v", err)
 	}
@@ -119,7 +119,7 @@ func TestEmbeddingGate(t *testing.T) {
 // when the vector index does not exist; it panics if touched.
 func TestHybridNeverIndexes(t *testing.T) {
 	h := handlerFor(t, panicEmbedder{})
-	_, out, err := h.hybridSearch(context.Background(), callTool("hybrid_search_figma"), hybridInput{Query: "menopausia", Limit: 5})
+	_, out, err := h.search(context.Background(), callTool("search_figma"), searchInput{Query: "menopausia", Mode: "hybrid", Limit: 5})
 	if err != nil {
 		t.Fatalf("hybrid = %v", err)
 	}
@@ -135,7 +135,7 @@ func TestEmbeddingsOptInFlow(t *testing.T) {
 	h := handlerFor(t, emb)
 	ctx := context.Background()
 
-	_, _, err := h.semanticSearch(ctx, callTool("semantic_search_figma"), semanticInput{Query: "payment"})
+	_, _, err := h.search(ctx, callTool("search_figma"), searchInput{Query: "payment", Mode: "semantic"})
 	if err == nil || !strings.Contains(err.Error(), "vector index missing") {
 		t.Fatalf("semantic before index = %v", err)
 	}
@@ -143,7 +143,7 @@ func TestEmbeddingsOptInFlow(t *testing.T) {
 		t.Fatalf("semantic must not embed without an index (%d calls)", emb.calls.Load())
 	}
 
-	_, out, err := h.hybridSearch(ctx, callTool("hybrid_search_figma"), hybridInput{Query: "menopausia", Limit: 5})
+	_, out, err := h.search(ctx, callTool("search_figma"), searchInput{Query: "menopausia", Mode: "hybrid", Limit: 5})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,11 +159,11 @@ func TestEmbeddingsOptInFlow(t *testing.T) {
 		t.Fatalf("index = %+v calls=%d", idx, emb.calls.Load())
 	}
 
-	if _, _, err := h.semanticSearch(ctx, callTool("semantic_search_figma"), semanticInput{Query: "menopausia", Limit: 5}); err != nil {
+	if _, _, err := h.search(ctx, callTool("search_figma"), searchInput{Query: "menopausia", Mode: "semantic", Limit: 5}); err != nil {
 		t.Fatalf("semantic after index = %v", err)
 	}
 
-	_, out, err = h.hybridSearch(ctx, callTool("hybrid_search_figma"), hybridInput{Query: "menopausia", Limit: 5})
+	_, out, err = h.search(ctx, callTool("search_figma"), searchInput{Query: "menopausia", Mode: "hybrid", Limit: 5})
 	if err != nil {
 		t.Fatal(err)
 	}
