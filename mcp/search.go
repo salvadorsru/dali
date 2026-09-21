@@ -59,7 +59,6 @@ func (h *handlers) search(ctx context.Context, req *mcp.CallToolRequest, in sear
 // searchText is the default full-text search over node names and body text.
 // A Type filter narrows results to a single node kind.
 func (h *handlers) searchText(ctx context.Context, svc *query.Service, in searchInput, limit int) (searchOutput, error) {
-	out := searchOutput{Results: make([]NodeRef, 0, limit)}
 	opts := query.UnifiedOptions{
 		Query:       in.Query,
 		Limit:       limit,
@@ -68,24 +67,11 @@ func (h *handlers) searchText(ctx context.Context, svc *query.Service, in search
 		Context:     in.Context,
 		MaxChildren: in.MaxChildren,
 	}
-	if in.Type != "" {
-		// The structural group returns every node of the type, so fetch wide
-		// and filter down to those that actually match the text.
-		opts.Limit = limit * 4
-	}
 	results, err := svc.UnifiedSearch(ctx, nil, opts)
 	if err != nil {
-		return out, err
+		return searchOutput{}, err
 	}
-	for _, r := range results {
-		if in.Type != "" && r.Type != in.Type {
-			continue
-		}
-		out.Results = append(out.Results, NodeRef{ID: r.ID, Type: r.Type, Name: r.Name, Text: r.Text, Page: r.Page, PagePath: r.Path})
-		if len(out.Results) >= limit {
-			break
-		}
-	}
+	out := semanticResults(results)
 	if len(out.Results) == 0 && in.Type == "" {
 		out.Suggestions = suggest(svc, in.Query)
 	}
@@ -103,12 +89,9 @@ func (h *handlers) searchSemantic(ctx context.Context, svc *query.Service, in se
 	}
 	opts := query.Options{Query: in.Query, Type: in.Type, Limit: limit}
 	if in.Page != "" {
-		id, err := svc.PageByName(in.Page)
+		id, err := resolvePage(svc, in.Page)
 		if err != nil {
 			return searchOutput{}, err
-		}
-		if id == "" {
-			return searchOutput{}, fmt.Errorf("page %q not found", in.Page)
 		}
 		opts.PageID = id
 	}
@@ -137,12 +120,9 @@ func (h *handlers) searchHybrid(ctx context.Context, svc *query.Service, in sear
 		MaxChildren: in.MaxChildren,
 	}
 	if in.Page != "" {
-		id, err := svc.PageByName(in.Page)
+		id, err := resolvePage(svc, in.Page)
 		if err != nil {
 			return searchOutput{}, err
-		}
-		if id == "" {
-			return searchOutput{}, fmt.Errorf("page %q not found", in.Page)
 		}
 		opts.PageID = id
 	}
@@ -153,6 +133,18 @@ func (h *handlers) searchHybrid(ctx context.Context, svc *query.Service, in sear
 	out := semanticResults(results)
 	out.UsedEmbeddings = mode == query.ModeHybrid
 	return out, nil
+}
+
+// resolvePage maps a page name to its id, failing when the page is unknown.
+func resolvePage(svc *query.Service, name string) (string, error) {
+	id, err := svc.PageByName(name)
+	if err != nil {
+		return "", err
+	}
+	if id == "" {
+		return "", fmt.Errorf("page %q not found", name)
+	}
+	return id, nil
 }
 
 // ensureEmbedded builds missing embeddings and reports progress, so the vector
