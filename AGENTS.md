@@ -95,6 +95,20 @@ The project is deliberately split into parsing, modelling, indexing, querying, e
 | `mcp/`       | MCP server                                          |
 | `cmd/dali/`  | CLI entry point                                     |
 
+### Scope
+
+The core is `kiwi/` → `parser/` → `model/` → `index/` → `query/`, plus `embed/`,
+`semantic/`, `mcp/` and `cmd/dali/`. That is where correctness and performance
+work belongs.
+
+`quality/`, `export/` and `codegen/` form a **peripheral perimeter**: they are
+maintained and must keep working, but they are not the focus. Treat their output
+as frozen — do not change their public behaviour unless the task explicitly asks
+for it, and never let perimeter work reshape the core pipelines. Because they
+read `.fig` through `parser.Open` + `model.Build` (see the conformance test in
+`query/conformance_test.go`), a core model change can still surface there; keep
+that path covered rather than reaching into these packages.
+
 ---
 
 ## 🔎 Search
