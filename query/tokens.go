@@ -41,7 +41,6 @@ func (s *Service) Palette(minUsage, limit int) ([]SolidColor, error) {
 	if err != nil {
 		return nil, err
 	}
-	kindFor := func(key string) string { return key }
 	type acc struct{ usage, fills, strokes int }
 	seen := make(map[string]*acc)
 	for _, d := range defs {
@@ -57,7 +56,7 @@ func (s *Service) Palette(minUsage, limit int) ([]SolidColor, error) {
 			seen[d.Summary] = a
 		}
 		a.usage += d.Usage
-		if kindFor(d.Kind) == "FILL" {
+		if d.Kind == "FILL" {
 			a.fills += d.Usage
 		} else {
 			a.strokes += d.Usage

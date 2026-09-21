@@ -107,10 +107,7 @@ func splitPredicate(rest string) (op, value string, err error) {
 		return "", "", fmt.Errorf("bad @name predicate %q (use = or ~)", rest)
 	}
 	op = string(rest[0])
-	value = strings.TrimSpace(rest[1:])
-	if len(value) >= 2 && (value[0] == '\'' || value[0] == '"') && value[len(value)-1] == value[0] {
-		value = value[1 : len(value)-1]
-	}
+	value = unquote(rest[1:])
 	if value == "" {
 		return "", "", fmt.Errorf("empty @name value in predicate %q", rest)
 	}
@@ -118,11 +115,7 @@ func splitPredicate(rest string) (op, value string, err error) {
 }
 
 func stripParenthesis(rest string) (string, error) {
-	value := strings.TrimSpace(strings.TrimPrefix(rest, ","))
-	value = strings.TrimSpace(strings.TrimSuffix(value, ")"))
-	if len(value) >= 2 && (value[0] == '\'' || value[0] == '"') && value[len(value)-1] == value[0] {
-		value = value[1 : len(value)-1]
-	}
+	value := unquote(strings.TrimSuffix(strings.TrimPrefix(rest, ","), ")"))
 	if value == "" {
 		return "", fmt.Errorf("empty contains() value in %q", rest)
 	}
