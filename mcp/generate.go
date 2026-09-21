@@ -10,11 +10,13 @@ import (
 
 	"github.com/salvadorsru/dali/codegen"
 	"github.com/salvadorsru/dali/codegen/ir"
+	"github.com/salvadorsru/dali/model"
 )
 
 type generateInput struct {
 	File      string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
-	Component string `json:"component,omitempty" jsonschema:"component id to generate, e.g. 1:225; omit to generate every component"`
+	Component string `json:"component,omitempty" jsonschema:"node id to generate, e.g. 1:225"`
+	Name      string `json:"name,omitempty" jsonschema:"node name substring to resolve; omit both to generate every component"`
 	Tokens    string `json:"tokens,omitempty" jsonschema:"token format to include: css, style-dict or figma; empty omits tokens"`
 }
 
@@ -24,7 +26,9 @@ type generatedFile struct {
 }
 
 type generateOutput struct {
-	Files []generatedFile `json:"files"`
+	Files        []generatedFile `json:"files"`
+	Alternatives []NodeRef       `json:"alternatives,omitempty" jsonschema:"other layers matching the name, for disambiguation"`
+	Matches      []string        `json:"matches,omitempty" jsonschema:"near-miss names when nothing resolved"`
 }
 
 // generateFigma renders components as HTML+Tailwind and optional design
@@ -39,9 +43,23 @@ func (h *handlers) generateFigma(ctx context.Context, req *mcp.CallToolRequest, 
 	config.GenerateIndex = false
 
 	var ids []string
-	if in.Component != "" {
+	var alts []*model.Node
+	switch {
+	case in.Component != "" && in.Name != "":
+		return nil, generateOutput{}, errors.New("use either component or name, not both")
+	case in.Name != "":
+		node, alternatives, matches, err := resolveSection(svc, sectionInput{Name: in.Name})
+		if err != nil {
+			return nil, generateOutput{}, err
+		}
+		if node == nil {
+			return nil, generateOutput{Matches: matches}, nil
+		}
+		ids = []string{node.ID}
+		alts = alternatives
+	case in.Component != "":
 		ids = []string{in.Component}
-	} else {
+	default:
 		components, err := svc.Components()
 		if err != nil {
 			return nil, generateOutput{}, err
@@ -67,5 +85,13 @@ func (h *handlers) generateFigma(ctx context.Context, req *mcp.CallToolRequest, 
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 
-	return nil, generateOutput{Files: files}, nil
+	pages := pageNames(svc)
+	refs := make([]NodeRef, 0, len(alts))
+	for _, a := range alts {
+		ref := toRef(a)
+		ref.PageName = pages[a.PageID]
+		refs = append(refs, ref)
+	}
+
+	return nil, generateOutput{Files: files, Alternatives: refs}, nil
 }

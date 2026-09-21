@@ -426,6 +426,90 @@ func TestGenerate(t *testing.T) {
 	}
 }
 
+// TestGenerateByName resolves a single node by name and generates it, errors on
+// both-params, and returns alternatives for an ambiguous name.
+func TestGenerateByName(t *testing.T) {
+	if _, err := os.Stat(sample); err != nil {
+		t.Skip("sample fig not present")
+	}
+
+	ctx := context.Background()
+	ct, st := mcp.NewInMemoryTransports()
+	srv, h := newServer(sample, nil)
+	defer h.close()
+	go srv.Run(ctx, st)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+	session, err := client.Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+
+	// Both params must fail.
+	res, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name: "generate_figma",
+		Arguments: map[string]any{
+			"component": "1:1",
+			"name":      "anything",
+		},
+	})
+	if err == nil && !res.IsError {
+		t.Fatal("generate_figma accepted both component and name")
+	}
+
+	// Ambiguous name returns alternatives for disambiguation.
+	res, err = session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "generate_figma",
+		Arguments: map[string]any{"name": "Button"},
+	})
+	if err != nil || res.IsError {
+		t.Fatalf("generate_figma name: %v %+v body=%q", err, res, textOf(res))
+	}
+	var out generateOutput
+	if err := json.Unmarshal([]byte(textOf(res)), &out); err != nil {
+		t.Fatalf("generate_figma parse: %v", err)
+	}
+	if len(out.Files) < 1 {
+		t.Fatalf("generate_figma files = %+v", out.Files)
+	}
+	if out.Alternatives == nil {
+		t.Fatal("expected alternatives for ambiguous name Button")
+	}
+
+	// A resolvable single name generates its node.
+	res, err = session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "generate_figma",
+		Arguments: map[string]any{"name": "Chevron down"},
+	})
+	if err != nil || res.IsError {
+		t.Fatalf("generate_figma name single: %v %+v body=%q", err, res, textOf(res))
+	}
+	out = generateOutput{}
+	if err := json.Unmarshal([]byte(textOf(res)), &out); err != nil {
+		t.Fatalf("generate_figma single parse: %v", err)
+	}
+	if len(out.Files) < 1 {
+		t.Fatalf("generate_figma single files = %+v", out.Files)
+	}
+
+	// A name with no matches surfaces near-miss suggestions instead of failing.
+	res, err = session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "generate_figma",
+		Arguments: map[string]any{"name": "zzz-no-such-layer-zzz"},
+	})
+	if err != nil || res.IsError {
+		t.Fatalf("generate_figma miss: %v %+v", err, res)
+	}
+	out = generateOutput{}
+	if err := json.Unmarshal([]byte(textOf(res)), &out); err != nil {
+		t.Fatalf("generate_figma miss parse: %v", err)
+	}
+	if len(out.Files) != 0 {
+		t.Fatalf("near-miss generated files, want none: %+v", out.Files)
+	}
+}
+
 // TestLayoutOf verifies layout extraction is case-insensitive and picks the
 // LAYOUT style summary.
 func TestLayoutOf(t *testing.T) {
