@@ -9,7 +9,7 @@ import (
 
 // FromEnv selects an embedder from the environment.
 //
-//	DALI_EMBED_PROVIDER  auto (default) | ollama | llama | remote
+//	DALI_EMBED_PROVIDER  auto (default) | ollama | llama | remote | off
 //	DALI_LLAMA_URL       use an already-running llama-server (OpenAI API)
 //	DALI_EMBED_URL       Ollama endpoint (default http://localhost:11434)
 //	DALI_EMBED_MODEL     Ollama model (default bge-m3)
@@ -18,8 +18,12 @@ import (
 //	DALI_LLAMA_TAG       pinned llama.cpp release tag
 //	DALI_CACHE_DIR       download cache (default user cache dir /dali)
 //	DALI_EMBED_YES       skip the download confirmation prompt
+//
+// A provider of "off" (or "none") returns nil, disabling embeddings entirely.
 func FromEnv() Embedder {
 	switch os.Getenv("DALI_EMBED_PROVIDER") {
+	case "off", "none":
+		return nil
 	case "ollama":
 		return ollamaFromEnv()
 	case "llama", "local":

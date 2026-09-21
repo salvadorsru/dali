@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -56,6 +57,9 @@ func cmdIndex(args []string) error {
 	}
 
 	emb := embed.FromEnv()
+	if emb == nil {
+		return errors.New("embeddings disabled: DALI_EMBED_PROVIDER is 'off'")
+	}
 	defer embed.Close(emb)
 	stats, err := semantic.IndexWithProgress(context.Background(), svc.DB(), emb, progress("embeddings"))
 	if err != nil {
@@ -132,6 +136,9 @@ func cmdSemanticSearch(args []string) error {
 		return fmt.Errorf("sqlite-vec is not available in this build")
 	}
 	emb := embed.FromEnv()
+	if emb == nil {
+		return errors.New("embeddings disabled: DALI_EMBED_PROVIDER is 'off'")
+	}
 	defer embed.Close(emb)
 	if stats, err := semantic.IndexWithProgress(context.Background(), svc.DB(), emb, progress("embeddings")); err != nil {
 		return err
