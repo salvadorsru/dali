@@ -82,6 +82,7 @@ func (db *DB) migrate() error {
 			text_align TEXT,
 			text_align_v TEXT,
 			line_height REAL,
+			line_height_units TEXT,
 			letter_spacing REAL,
 			decoration TEXT,
 			rotation REAL,
@@ -183,7 +184,7 @@ func (db *DB) migrate() error {
 // versions, so old indexes keep working until the next rebuild.
 func (db *DB) ensureColumns() error {
 	want := map[string][]string{
-		"nodes": {"text_align", "text_align_v", "line_height", "letter_spacing", "decoration", "rotation", "clip_content", "runs", "path", "props", "paints", "bound_variables"},
+		"nodes": {"text_align", "text_align_v", "line_height", "line_height_units", "letter_spacing", "decoration", "rotation", "clip_content", "runs", "path", "props", "paints", "bound_variables"},
 	}
 	for table, cols := range want {
 		rows, err := db.sql.Query(`PRAGMA table_info(` + table + `)`)

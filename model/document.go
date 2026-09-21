@@ -113,6 +113,7 @@ func buildNode(m map[string]any, id string, blobs [][]byte) *Node {
 	n.TextAlignV = asString(m["textAlignVertical"])
 	if lh := asMap(m["lineHeight"]); lh != nil {
 		n.LineHeight = asFloat(lh["value"])
+		n.LineHeightUnits = asString(lh["units"])
 	}
 	if ls := asMap(m["letterSpacing"]); ls != nil {
 		n.LetterSpacing = asFloat(ls["value"])
@@ -208,6 +209,9 @@ func applyRunStyle(r *TextRun, styleID int64, overrides []any, m map[string]any)
 	}
 	if lh := asMap(base["lineHeight"]); lh != nil {
 		r.LineHeight = asFloat(lh["value"])
+		if units := asString(lh["units"]); units != "" {
+			r.LineHeightPx = resolveLineHeight(r.LineHeight, r.FontSize, units)
+		}
 	}
 	if ls := asMap(base["letterSpacing"]); ls != nil {
 		r.LetterSpacing = asFloat(ls["value"])

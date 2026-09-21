@@ -36,6 +36,7 @@ type NodeRef struct {
 	TextAlign     string  `json:"text_align,omitempty" jsonschema:"horizontal alignment: LEFT, CENTER, RIGHT, JUSTIFIED"`
 	TextAlignV    string  `json:"text_align_v,omitempty" jsonschema:"vertical alignment: TOP, CENTER, BOTTOM"`
 	LineHeight    float64 `json:"line_height,omitempty"`
+	LineHeightPx  float64 `json:"line_height_px,omitempty" jsonschema:"resolved line height in pixels"`
 	LetterSpacing float64 `json:"letter_spacing,omitempty"`
 	Decoration    string  `json:"decoration,omitempty" jsonschema:"UNDERLINE or STRIKETHROUGH"`
 	Rotation      float64 `json:"rotation,omitempty" jsonschema:"rotation in degrees"`
@@ -59,7 +60,7 @@ func toRef(n *model.Node) NodeRef {
 		X:        n.X, Y: n.Y, Width: n.Width, Height: n.Height, Visible: n.Visible, Opacity: n.Opacity,
 		FontFamily: n.FontFamily, FontStyle: n.FontStyle, FontSize: n.FontSize,
 		TextAlign: n.TextAlign, TextAlignV: n.TextAlignV, LineHeight: n.LineHeight,
-		LetterSpacing: n.LetterSpacing, Decoration: n.Decoration,
+		LineHeightPx: n.LineHeightPx(), LetterSpacing: n.LetterSpacing, Decoration: n.Decoration,
 		Rotation: n.Rotation, ClipContent: n.ClipContent,
 		Path: n.Path,
 	}

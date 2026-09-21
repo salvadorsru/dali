@@ -21,32 +21,33 @@ func (t NodeType) IsComponent() bool {
 }
 
 type Node struct {
-	ID            string
-	Type          NodeType
-	Name          string
-	ParentID      string
-	PageID        string
-	Position      string
-	Visible       bool
-	Opacity       float64
-	X             float64
-	Y             float64
-	Width         float64
-	Height        float64
-	Text          string
-	FontFamily    string
-	FontStyle     string
-	FontSize      float64
-	TextAlign     string
-	TextAlignV    string
-	LineHeight    float64
-	LetterSpacing float64
-	Decoration    string // UNDERLINE | STRIKETHROUGH
-	Rotation      float64
-	ClipContent   bool
-	Path          string // SVG path geometry from vector blobs
-	Runs          []TextRun
-	Props         []PropOverride
+	ID              string
+	Type            NodeType
+	Name            string
+	ParentID        string
+	PageID          string
+	Position        string
+	Visible         bool
+	Opacity         float64
+	X               float64
+	Y               float64
+	Width           float64
+	Height          float64
+	Text            string
+	FontFamily      string
+	FontStyle       string
+	FontSize        float64
+	TextAlign       string
+	TextAlignV      string
+	LineHeight      float64
+	LineHeightUnits string
+	LetterSpacing   float64
+	Decoration      string // UNDERLINE | STRIKETHROUGH
+	Rotation        float64
+	ClipContent     bool
+	Path            string // SVG path geometry from vector blobs
+	Runs            []TextRun
+	Props           []PropOverride
 
 	// PaintData and BoundVars are populated when a node is read back from the
 	// index; they are not set during parsing (raw paint payloads live there).
@@ -74,6 +75,7 @@ type TextRun struct {
 	Color         string  `json:"color,omitempty"`
 	Decoration    string  `json:"decoration,omitempty"`
 	LineHeight    float64 `json:"line_height,omitempty"`
+	LineHeightPx  float64 `json:"line_height_px,omitempty"`
 	LetterSpacing float64 `json:"letter_spacing,omitempty"`
 }
 
@@ -87,6 +89,23 @@ type PropOverride struct {
 func (n *Node) IsComponent() bool { return n.Type.IsComponent() }
 
 func (n *Node) IsText() bool { return n.Type == TypeText }
+
+// LineHeightPx resolves the node's line height to pixels; RAW and PERCENT
+// units scale by the font size, PIXELS (or unset) are already absolute.
+func (n *Node) LineHeightPx() float64 {
+	return resolveLineHeight(n.LineHeight, n.FontSize, n.LineHeightUnits)
+}
+
+func resolveLineHeight(value, fontSize float64, units string) float64 {
+	switch units {
+	case "RAW":
+		return value * fontSize
+	case "PERCENT":
+		return fontSize * value / 100
+	default: // PIXELS or unset
+		return value
+	}
+}
 
 // Symbol resolves the component an instance instantiates.
 func (n *Node) Symbol() *Node { return n.symbol }

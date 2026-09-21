@@ -198,8 +198,8 @@ func (db *DB) Write(doc *model.Document) error {
 
 	// Upsert prepared statements.
 	nodeStmt, err := tx.Prepare(`INSERT OR REPLACE INTO nodes
-		(id, page_id, parent_id, type, name, position, visible, opacity, x, y, width, height, text, font_family, font_style, font_size, text_align, text_align_v, line_height, letter_spacing, decoration, rotation, clip_content, component_id, runs, path, props, paints, bound_variables)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		(id, page_id, parent_id, type, name, position, visible, opacity, x, y, width, height, text, font_family, font_style, font_size, text_align, text_align_v, line_height, line_height_units, letter_spacing, decoration, rotation, clip_content, component_id, runs, path, props, paints, bound_variables)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
@@ -236,7 +236,7 @@ func (db *DB) Write(doc *model.Document) error {
 			n.ID, n.PageID, n.ParentID, string(n.Type), n.Name, n.Position,
 			boolInt(n.Visible), n.Opacity, n.X, n.Y, n.Width, n.Height,
 			n.Text, n.FontFamily, n.FontStyle, n.FontSize,
-			n.TextAlign, n.TextAlignV, n.LineHeight, n.LetterSpacing, n.Decoration,
+			n.TextAlign, n.TextAlignV, n.LineHeight, n.LineHeightUnits, n.LetterSpacing, n.Decoration,
 			n.Rotation, boolInt(n.ClipContent), n.ComponentID,
 			jsonString(n.Runs), n.Path, jsonString(n.Props), paints, bound,
 		); err != nil {
@@ -289,9 +289,9 @@ func nodeFingerprint(n *model.Node) string {
 		n.ID, n.PageID, n.ParentID, n.Type, n.Name, n.Position)
 	fmt.Fprintf(h, "%t\x00%.2f\x00%.2f\x00%.2f\x00%.2f\x00%.2f\x00",
 		n.Visible, n.Opacity, n.X, n.Y, n.Width, n.Height)
-	fmt.Fprintf(h, "%s\x00%s\x00%s\x00%.2f\x00%s\x00%.2f\x00%.2f\x00%s\x00%.2f\x00%t\x00%s\x00%s\x00%x\x00%s\x00",
+	fmt.Fprintf(h, "%s\x00%s\x00%s\x00%.2f\x00%s\x00%.2f\x00%.2f\x00%s\x00%s\x00%.2f\x00%t\x00%s\x00%s\x00%x\x00%s\x00",
 		n.Text, n.FontFamily, n.FontStyle, n.FontSize, n.ComponentID,
-		n.LetterSpacing, n.LineHeight, n.TextAlign, n.Rotation, n.ClipContent, n.Decoration,
+		n.LetterSpacing, n.LineHeight, n.LineHeightUnits, n.TextAlign, n.Rotation, n.ClipContent, n.Decoration,
 		n.Path, n.Runs, jsonString(n.Props))
 	fmt.Fprintf(h, "%s\x00%s\x00", jsonString(n.PaintStack()), n.BoundVarsJSON())
 	hashes := make([]string, 0, len(n.Images))

@@ -210,7 +210,7 @@ func TestBuildTree(t *testing.T) {
 	if n.PageID != "0:1" || n.Text != "Hi" || n.FontFamily != "Inter" {
 		t.Fatalf("node = %+v", n)
 	}
-	if n.TextAlign != "CENTER" || n.TextAlignV != "TOP" || n.LineHeight != 18 || n.LetterSpacing != 1.5 {
+	if n.TextAlign != "CENTER" || n.TextAlignV != "TOP" || n.LineHeight != 18 || n.LineHeightUnits != "PIXELS" || n.LineHeightPx() != 18 || n.LetterSpacing != 1.5 {
 		t.Fatalf("node text props = %+v", n)
 	}
 	if frameNode, _ := doc.Node("0:2"); frameNode.Rotation != 90 || !frameNode.ClipContent {
@@ -590,5 +590,27 @@ func TestVariables(t *testing.T) {
 	}
 	if len(v.Modes) != 1 || v.Modes[0].Mode != "Mode 1" || v.Modes[0].Value != "Syne" {
 		t.Fatalf("modes = %+v", v.Modes)
+	}
+}
+
+func TestRawLineHeightPx(t *testing.T) {
+	docGUID := g(0, 0)
+	pageGUID := g(0, 1)
+	text := mkNode(3, "TEXT", "Caption", pageGUID, "a")
+	text["fontName"] = map[string]any{"family": "Onest", "style": "Medium"}
+	text["fontSize"] = float32(32)
+	text["lineHeight"] = map[string]any{"units": "RAW", "value": float32(0.95)}
+
+	doc := Build([]any{
+		mkNode(0, "DOCUMENT", "Doc", nil, ""),
+		mkNode(1, "CANVAS", "Page", docGUID, "a"),
+		text,
+	}, nil)
+	n, _ := doc.Node("0:3")
+	if n.LineHeightUnits != "RAW" {
+		t.Fatalf("units = %q", n.LineHeightUnits)
+	}
+	if px := n.LineHeightPx(); px < 30.39 || px > 30.41 {
+		t.Fatalf("line_height_px = %v, want 30.4", px)
 	}
 }

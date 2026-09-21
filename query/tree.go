@@ -8,7 +8,7 @@ import (
 	"github.com/salvadorsru/dali/model"
 )
 
-const nodeColumns = `id, page_id, parent_id, type, name, position, visible, opacity, x, y, width, height, text, font_family, font_style, font_size, text_align, text_align_v, line_height, letter_spacing, decoration, rotation, clip_content, component_id, runs, path, props, paints, bound_variables`
+const nodeColumns = `id, page_id, parent_id, type, name, position, visible, opacity, x, y, width, height, text, font_family, font_style, font_size, text_align, text_align_v, line_height, line_height_units, letter_spacing, decoration, rotation, clip_content, component_id, runs, path, props, paints, bound_variables`
 
 type scanner interface {
 	Scan(dest ...any) error
@@ -17,12 +17,13 @@ type scanner interface {
 func scanNode(sc scanner) (*model.Node, error) {
 	n := &model.Node{}
 	var visible, clip int
+	var lhu sql.NullString
 	var runs, props, paints, boundVars string
 	err := sc.Scan(
 		&n.ID, &n.PageID, &n.ParentID, &n.Type, &n.Name, &n.Position,
 		&visible, &n.Opacity, &n.X, &n.Y, &n.Width, &n.Height,
 		&n.Text, &n.FontFamily, &n.FontStyle, &n.FontSize,
-		&n.TextAlign, &n.TextAlignV, &n.LineHeight, &n.LetterSpacing,
+		&n.TextAlign, &n.TextAlignV, &n.LineHeight, &lhu, &n.LetterSpacing,
 		&n.Decoration, &n.Rotation, &clip, &n.ComponentID,
 		&runs, &n.Path, &props, &paints, &boundVars,
 	)
@@ -31,6 +32,7 @@ func scanNode(sc scanner) (*model.Node, error) {
 	}
 	n.Visible = visible != 0
 	n.ClipContent = clip != 0
+	n.LineHeightUnits = lhu.String
 	n.Runs = parseRuns(runs)
 	n.Props = parseProps(props)
 	n.PaintData = parsePaints(paints)
@@ -238,12 +240,13 @@ func (s *Service) Subtree(id string, maxDepth int) ([]SubtreeItem, error) {
 func scanNodeDepth(rows *sql.Rows) (*model.Node, int, error) {
 	n := &model.Node{}
 	var visible, clip, depth int
+	var lhu sql.NullString
 	var runs, props, paints, boundVars string
 	err := rows.Scan(
 		&n.ID, &n.PageID, &n.ParentID, &n.Type, &n.Name, &n.Position,
 		&visible, &n.Opacity, &n.X, &n.Y, &n.Width, &n.Height,
 		&n.Text, &n.FontFamily, &n.FontStyle, &n.FontSize,
-		&n.TextAlign, &n.TextAlignV, &n.LineHeight, &n.LetterSpacing,
+		&n.TextAlign, &n.TextAlignV, &n.LineHeight, &lhu, &n.LetterSpacing,
 		&n.Decoration, &n.Rotation, &clip, &n.ComponentID,
 		&runs, &n.Path, &props, &paints, &boundVars, &depth,
 	)
@@ -252,6 +255,7 @@ func scanNodeDepth(rows *sql.Rows) (*model.Node, int, error) {
 	}
 	n.Visible = visible != 0
 	n.ClipContent = clip != 0
+	n.LineHeightUnits = lhu.String
 	n.Runs = parseRuns(runs)
 	n.Props = parseProps(props)
 	n.PaintData = parsePaints(paints)
