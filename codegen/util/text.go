@@ -29,16 +29,16 @@ func TranslateText(node *model.Node) ir.TextSpec {
 	// Text runs
 	for _, run := range node.Runs {
 		spec.Runs = append(spec.Runs, ir.TextRunSpec{
-			Start:          run.Start,
-			Length:         run.Len,
-			Text:           run.Text,
-			FontFamily:     run.FontFamily,
-			FontStyle:      run.FontStyle,
-			FontSize:       run.FontSize,
-			Color:          run.Color,
-			Decoration:     run.Decoration,
-			LineHeight:     run.LineHeight,
-			LetterSpacing:  run.LetterSpacing,
+			Start:         run.Start,
+			Length:        run.Len,
+			Text:          run.Text,
+			FontFamily:    run.FontFamily,
+			FontStyle:     run.FontStyle,
+			FontSize:      run.FontSize,
+			Color:         run.Color,
+			Decoration:    run.Decoration,
+			LineHeight:    run.LineHeight,
+			LetterSpacing: run.LetterSpacing,
 		})
 	}
 

@@ -35,18 +35,18 @@ func (h *handlers) lintFigma(ctx context.Context, req *mcp.CallToolRequest, in l
 }
 
 type analyzeInput struct {
-	File     string `json:"file,omitempty" jsonschema:"fig file to analyze; defaults to the one dali was started with"`
-	Kind     string `json:"kind" jsonschema:"spacing, clusters or overlaps"`
+	File     string  `json:"file,omitempty" jsonschema:"fig file to analyze; defaults to the one dali was started with"`
+	Kind     string  `json:"kind" jsonschema:"spacing, clusters or overlaps"`
 	MinRatio float64 `json:"min_ratio,omitempty" jsonschema:"overlaps: minimum overlap ratio of the smaller box (default 0.1)"`
-	MinCount int    `json:"min_count,omitempty" jsonschema:"clusters: minimum repeats (default 3)"`
-	Limit    int    `json:"limit,omitempty" jsonschema:"max rows (default 50)"`
+	MinCount int     `json:"min_count,omitempty" jsonschema:"clusters: minimum repeats (default 3)"`
+	Limit    int     `json:"limit,omitempty" jsonschema:"max rows (default 50)"`
 }
 
 type analyzeOutput struct {
-	Kind     string              `json:"kind"`
-	Spacing  []quality.GapStat   `json:"spacing,omitempty"`
-	Clusters []quality.Cluster   `json:"clusters,omitempty"`
-	Overlaps []quality.Overlap   `json:"overlaps,omitempty"`
+	Kind     string            `json:"kind"`
+	Spacing  []quality.GapStat `json:"spacing,omitempty"`
+	Clusters []quality.Cluster `json:"clusters,omitempty"`
+	Overlaps []quality.Overlap `json:"overlaps,omitempty"`
 }
 
 func (h *handlers) analyzeFigma(ctx context.Context, req *mcp.CallToolRequest, in analyzeInput) (*mcp.CallToolResult, analyzeOutput, error) {

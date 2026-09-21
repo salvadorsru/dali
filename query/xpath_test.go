@@ -73,10 +73,10 @@ func TestParseXPath(t *testing.T) {
 
 func TestSplitTokens(t *testing.T) {
 	cases := map[string][]string{
-		"PaymentScreen": {"payment", "screen"},
+		"PaymentScreen":    {"payment", "screen"},
 		"checkout  Button": {"checkout", "button"},
-		"Hero":          {"hero"},
-		"  ":            nil,
+		"Hero":             {"hero"},
+		"  ":               nil,
 	}
 	for in, want := range cases {
 		got := splitTokens(in)

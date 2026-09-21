@@ -222,9 +222,9 @@ func TestTranslateMinSize(t *testing.T) {
 
 func TestTranslateStackPadding(t *testing.T) {
 	symmetric := node(t, 2, "FRAME", "Symmetric", map[string]any{
-		"stackMode":               "VERTICAL",
-		"stackVerticalPadding":    float64(12),
-		"stackHorizontalPadding":  float64(16),
+		"stackMode":              "VERTICAL",
+		"stackVerticalPadding":   float64(12),
+		"stackHorizontalPadding": float64(16),
 	})
 	spec := TranslateLayout(symmetric)
 	want := ir.PaddingSpec{Top: 12, Right: 16, Bottom: 12, Left: 16}
@@ -233,11 +233,11 @@ func TestTranslateStackPadding(t *testing.T) {
 	}
 
 	overridden := node(t, 3, "FRAME", "Overridden", map[string]any{
-		"stackMode":               "VERTICAL",
-		"stackVerticalPadding":    float64(14),
-		"stackPaddingBottom":      float64(0),
-		"stackHorizontalPadding":  float64(40),
-		"stackPaddingRight":       float64(40),
+		"stackMode":              "VERTICAL",
+		"stackVerticalPadding":   float64(14),
+		"stackPaddingBottom":     float64(0),
+		"stackHorizontalPadding": float64(40),
+		"stackPaddingRight":      float64(40),
 	})
 	spec = TranslateLayout(overridden)
 	want = ir.PaddingSpec{Top: 14, Right: 40, Bottom: 0, Left: 40}

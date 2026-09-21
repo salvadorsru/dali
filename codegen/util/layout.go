@@ -12,13 +12,13 @@ import (
 func TranslateLayout(node *model.Node) ir.LayoutSpec {
 	info := node.Layout()
 	spec := ir.LayoutSpec{
-		Mode:          "NONE",
-		Direction:     "row",
-		Gap:           0,
-		Padding:       ir.PaddingSpec{},
-		AlignItems:    "stretch",
+		Mode:           "NONE",
+		Direction:      "row",
+		Gap:            0,
+		Padding:        ir.PaddingSpec{},
+		AlignItems:     "stretch",
 		JustifyContent: "flex-start",
-		AlignContent:  "stretch",
+		AlignContent:   "stretch",
 	}
 
 	if info == nil {

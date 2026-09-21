@@ -21,12 +21,12 @@ func BuildComponentSpec(svc *query.Service, componentID string) (ir.ComponentSpe
 	}
 
 	spec := ir.ComponentSpec{
-		ID:      comp.ID,
-		Name:    comp.Name,
-		Type:    string(comp.Type),
-		Layout:  TranslateLayout(comp),
-		Styles:  TranslateStyles(comp),
-		Props:   []ir.ComponentProp{},
+		ID:       comp.ID,
+		Name:     comp.Name,
+		Type:     string(comp.Type),
+		Layout:   TranslateLayout(comp),
+		Styles:   TranslateStyles(comp),
+		Props:    []ir.ComponentProp{},
 		Children: []ir.NodeSpec{},
 	}
 

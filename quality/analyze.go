@@ -95,7 +95,10 @@ func rankGaps(counts map[float64]int, limit int) []GapStat {
 }
 
 func clusterStats(doc *model.Document, opts AnalyzeOptions) []Cluster {
-	type key struct{ t, page string; w, h float64 }
+	type key struct {
+		t, page string
+		w, h    float64
+	}
 	counts := make(map[key]int)
 	for _, n := range doc.All() {
 		switch n.Type {
