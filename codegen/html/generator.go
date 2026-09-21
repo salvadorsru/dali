@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/salvadorsru/dali/codegen/ir"
-	"github.com/salvadorsru/dali/codegen/tokens"
 	"github.com/salvadorsru/dali/codegen/util"
 )
 
@@ -52,12 +51,6 @@ func (g *HTMLGenerator) GenerateComponent(spec ir.ComponentSpec, tokens ir.Token
 	b.WriteString(g.renderElement(root, ""))
 
 	return b.String(), nil
-}
-
-// GenerateTokens generates CSS variables for tokens.
-func (g *HTMLGenerator) GenerateTokens(set ir.TokenSet, config ir.GeneratorConfig) (string, error) {
-	tg := tokens.TokenGenerator{}
-	return tg.GenerateCSSVariables(set, config)
 }
 
 // GenerateIndex generates an HTML file importing all components.

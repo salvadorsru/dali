@@ -99,10 +99,6 @@ func translateFill(p any) *ir.FillSpec {
 		return nil
 	}
 
-	if blend := asString(pm["blendMode"]); blend != "" {
-		fill.BlendMode = blend
-	}
-
 	return fill
 }
 
@@ -135,19 +131,6 @@ func translateStroke(p any) *ir.StrokeSpec {
 	}
 	if a := asString(pm["strokeAlign"]); a != "" {
 		stroke.Align = a
-	}
-	if cap := asString(pm["strokeCap"]); cap != "" {
-		stroke.Cap = cap
-	}
-	if join := asString(pm["strokeJoin"]); join != "" {
-		stroke.Join = join
-	}
-	if dash := asSlice(pm["strokeDashes"]); len(dash) > 0 {
-		for _, d := range dash {
-			if f := asFloat(d); f > 0 {
-				stroke.Dashes = append(stroke.Dashes, f)
-			}
-		}
 	}
 
 	return stroke
@@ -202,9 +185,8 @@ func translateEffects(node *model.Node) []ir.EffectSpec {
 			continue
 		}
 		effect := ir.EffectSpec{
-			Type:      strings.ToUpper(t),
-			Visible:   true,
-			BlendMode: asString(em["blendMode"]),
+			Type:    strings.ToUpper(t),
+			Visible: true,
 		}
 		switch t {
 		case "DROP_SHADOW", "INNER_SHADOW":

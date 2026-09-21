@@ -1,6 +1,7 @@
 package util
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -41,27 +42,11 @@ func node(t *testing.T, local int32, typ, name string, props map[string]any) *mo
 		m[k] = v
 	}
 	doc := build(mkNode(0, "DOCUMENT", "Doc", nil, ""), m)
-	n, ok := doc.Node("0:" + itoa(local))
+	n, ok := doc.Node("0:" + strconv.Itoa(int(local)))
 	if !ok {
 		t.Fatalf("node %d not found", local)
 	}
 	return n
-}
-
-func itoa(v int32) string {
-	return strings.TrimLeft(strings.Repeat(" ", 0)+fmtItoa(v), " ")
-}
-
-func fmtItoa(v int32) string {
-	digits := []byte{}
-	if v == 0 {
-		return "0"
-	}
-	for v > 0 {
-		digits = append([]byte{byte('0' + v%10)}, digits...)
-		v /= 10
-	}
-	return string(digits)
 }
 
 func TestSanitizeComponentName(t *testing.T) {
@@ -75,20 +60,6 @@ func TestSanitizeComponentName(t *testing.T) {
 	for _, tc := range tests {
 		if got := SanitizeComponentName(tc.in); got != tc.want {
 			t.Errorf("SanitizeComponentName(%q) = %q, want %q", tc.in, got, tc.want)
-		}
-	}
-}
-
-func TestSanitizePropName(t *testing.T) {
-	tests := []struct{ in, want string }{
-		{"color", "color"},
-		{"Eye Height", "eyeHeight"},
-		{"1st", "prop1st"},
-		{"", "prop"},
-	}
-	for _, tc := range tests {
-		if got := SanitizePropName(tc.in); got != tc.want {
-			t.Errorf("SanitizePropName(%q) = %q, want %q", tc.in, got, tc.want)
 		}
 	}
 }

@@ -18,7 +18,6 @@ func TranslateLayout(node *model.Node) ir.LayoutSpec {
 		Padding:        ir.PaddingSpec{},
 		AlignItems:     "stretch",
 		JustifyContent: "flex-start",
-		AlignContent:   "stretch",
 	}
 
 	if info == nil {
@@ -124,9 +123,6 @@ func TranslateLayout(node *model.Node) ir.LayoutSpec {
 	}
 	if sc := asString(info["strokeColor"]); sc != "" {
 		spec.StrokeColor = sc
-	}
-	if sa := asString(info["strokeAlign"]); sa != "" {
-		spec.StrokeAlign = sa
 	}
 
 	// Constraints
