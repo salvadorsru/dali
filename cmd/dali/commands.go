@@ -448,7 +448,8 @@ func cmdUsages(args []string) error {
 func cmdGenerate(args []string) error {
 	fs := flag.NewFlagSet("generate", flag.ContinueOnError)
 	outputDir := fs.String("out", "./generated", "output directory")
-	component := fs.String("component", "", "component ID to generate (default: all)")
+	node := fs.String("id", "", "node ID to generate (default: all)")
+	byName := fs.String("name", "", "node name substring to generate (default: all)")
 	tokensFormat := fs.String("tokens", "css", "tokens format: css, style-dict, figma")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -463,9 +464,33 @@ func cmdGenerate(args []string) error {
 	config := ir.DefaultConfig()
 	config.OutputDir = *outputDir
 
-	// If component specified, generate just that one
-	if *component != "" {
-		return codegen.GenerateComponents(svc, []string{*component}, config)
+	// A single node to generate, resolved by id or by name
+	if *node != "" && *byName != "" {
+		return fmt.Errorf("use either --id or --name, not both")
+	}
+	if *byName != "" {
+		nodes, err := svc.Query(fmt.Sprintf("name~%q", *byName))
+		if err != nil {
+			return err
+		}
+		if len(nodes) == 0 {
+			if sugs, serr := svc.SuggestNames(*byName, 8); serr == nil && suggestHint(sugs, *byName) {
+				return nil
+			}
+			return fmt.Errorf("no node named %q", *byName)
+		}
+		if len(nodes) > 1 {
+			for _, n := range nodes {
+				fmt.Printf("%s  %s  %s  %s\n", output.ID(n.ID), output.Type(string(n.Type)), truncate(n.Name, 40), output.Dim(n.PageID))
+			}
+			return fmt.Errorf("%q matches %d nodes; pick one with --id", *byName, len(nodes))
+		}
+		return codegen.GenerateComponents(svc, []string{nodes[0].ID}, config)
+	}
+
+	// If id specified, generate just that one
+	if *node != "" {
+		return codegen.GenerateComponents(svc, []string{*node}, config)
 	}
 
 	// Generate tokens if requested
