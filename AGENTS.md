@@ -244,14 +244,14 @@ launches on the first actual `Embed` call.
 
 | Tool | Embeddings | Indexes |
 | --- | --- | --- |
-| `section_figma`, `search_figma`, `query_figma`, `xpath_figma`, `find_text`, `find_components`, `find_instances` | never | never |
-| `hybrid_search_figma` | only when the vector index already exists and embeddings are ON | never (falls back to full-text) |
-| `semantic_search_figma` | only when embeddings are ON and the vector index exists | never |
+| `section_figma`, `search_figma`, `query_figma`, `xpath_figma`, `find_components`, `find_instances` | never | never |
+| `search_figma` — `mode=hybrid` | only when the vector index already exists and embeddings are ON | never (falls back to full-text) |
+| `search_figma` — `mode=semantic` | only when embeddings are ON and the vector index exists | never |
 | `index_embeddings` | yes | yes — the only tool that does |
 
-Agent guidance: exact names → `section_figma` / `search_figma`. Do not use
-`semantic`/`hybrid` unless the query is conceptual. Hybrid uses existing
-vectors only, and semantic fails with a hint when disabled or unindexed —
+Agent guidance: exact names → `section_figma` / `search_figma` (`mode=text`).
+Do not use `semantic`/`hybrid` unless the query is conceptual. Hybrid uses
+existing vectors only, and semantic fails with a hint when disabled or unindexed —
 call `index_embeddings` first.
 
 ### MCP configuration

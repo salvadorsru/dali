@@ -266,10 +266,8 @@ fig passed to `dali mcp` and then to the single `.fig` in the working directory.
 
 | Tool | Description |
 | --- | --- |
-| `search_figma` | Full-text search, with optional context. Ideal for exact names; never uses embeddings. |
+| `search_figma` | Search by name/text/meaning. `mode`: `text` (default, exact keyword + near-miss suggestions), `semantic` (conceptual, needs the vector index), `hybrid` (fuses text+vectors, falls back to full-text). `type` and `page` filters. Never builds embeddings. |
 | `section_figma` | Resolve a named block and inspect it in one call. Prefer for exact names. |
-| `semantic_search_figma` | Vector search. Conceptual queries only; requires the vector index (see below). |
-| `hybrid_search_figma` | Fusion of full-text, semantic and structural search (RRF). Uses existing vectors only; falls back to full-text when none exist. |
 | `index_embeddings` | Build the vector index explicitly. The only tool that embeds; searches never do. |
 | `query_figma` | Structural expressions, e.g. `type=FRAME`, `name~"card"`, `children("Header")`, `width>=320`. |
 | `xpath_figma` | XPath subset over the tree, e.g. `//FRAME[@name~"card"]`, `/DOCUMENT/CANVAS`. |
@@ -282,7 +280,6 @@ fig passed to `dali mcp` and then to the single `.fig` in the working directory.
 | `get_tokens` | Aggregate tokens: colour palette, variables, fonts, text classes, layouts. |
 | `get_usages` / `get_component` | Component placements / codegen contract (variants, props). |
 | `get_dependents` | Impact analysis: which screens place a component. |
-| `find_text` | Search text content of TEXT nodes. |
 | `variables` | List design tokens with values per mode. |
 | `get_stats` / `list_pages` | Document summary / pages in document order. |
 | `list_figs` | List `.fig`/`.deck` files in the current directory. |
@@ -307,9 +304,9 @@ not replaced; the design path is written absolute.
 ### Embeddings are opt-in
 
 The server **never** starts an embedder unless `DALI_EMBEDDINGS=1` is set. Search
-tools stay offline by default; `hybrid_search_figma` degrades to full-text and
-`semantic_search_figma` fails with a hint. To enable vectors, add to the server
-`env` (in the config file) or pass on the command line:
+tools stay offline by default; `search_figma` in `hybrid` mode degrades to
+full-text and `semantic` mode fails with a hint. To enable vectors, add to the
+server `env` (in the config file) or pass on the command line:
 
 ```json
 "env": {
