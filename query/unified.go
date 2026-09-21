@@ -10,31 +10,15 @@ import (
 	"github.com/salvadorsru/dali/model"
 )
 
-// Ranker turns one or more candidate result sets into a single ranked list.
-// Implementations are free to weight, reorder or discard candidates.
-type Ranker interface {
-	Rank(ctx context.Context, groups ...[]Result) ([]Result, error)
-}
-
-// RRF ranks candidates with Reciprocal Rank Fusion.
-type RRF struct{ K float64 }
-
-func (r RRF) k() float64 {
-	if r.K > 0 {
-		return r.K
-	}
-	return 60
-}
-
-// Rank merges the groups by reciprocal rank; a node present in several groups
-// accumulates a higher score. Ties break by score then by id.
-func (r RRF) Rank(ctx context.Context, groups ...[]Result) ([]Result, error) {
-	k := r.k()
+// rank merges candidate groups by reciprocal rank fusion; a node present in
+// several groups accumulates a higher score. Ties break by score then by id.
+func rank(groups ...[]Result) []Result {
+	const k = 60.0
 	scores := make(map[string]float64)
 	byID := make(map[string]Result)
 	for _, group := range groups {
-		for rank, res := range group {
-			scores[res.ID] += 1 / (k + float64(rank+1))
+		for r, res := range group {
+			scores[res.ID] += 1 / (k + float64(r+1))
 			if _, ok := byID[res.ID]; !ok {
 				byID[res.ID] = res
 			}
@@ -52,7 +36,7 @@ func (r RRF) Rank(ctx context.Context, groups ...[]Result) ([]Result, error) {
 		}
 		return out[i].ID < out[j].ID
 	})
-	return out, nil
+	return out
 }
 
 // Options carried by a single unified search call. Extend with new filters or
@@ -125,10 +109,7 @@ func (s *Service) UnifiedSearch(ctx context.Context, emb embed.Embedder, opts Un
 		}
 	}
 
-	ranked, err := s.ranker.Rank(ctx, groups...)
-	if err != nil {
-		return nil, err
-	}
+	ranked := rank(groups...)
 	if opts.Context {
 		maxCh := opts.MaxChildren
 		if maxCh <= 0 {

@@ -89,7 +89,7 @@ func openService(doc *model.Document) (*Service, error) {
 	if err := db.Write(doc); err != nil {
 		return nil, err
 	}
-	return &Service{db: db, sql: db.SQL(), ranker: RRF{}}, nil
+	return &Service{db: db, sql: db.SQL()}, nil
 }
 
 func names(nodes []*model.Node) []string {

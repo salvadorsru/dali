@@ -53,7 +53,7 @@ func openTestService(t *testing.T) *Service {
 	if err := db.Write(qDoc(map[int32]string{3: "Checkout", 4: "Blue Button", 5: "Payment"})); err != nil {
 		t.Fatal(err)
 	}
-	return &Service{db: db, sql: db.SQL(), ranker: RRF{}}
+	return &Service{db: db, sql: db.SQL()}
 }
 
 func hasText(results []Result, text string) bool {
@@ -127,10 +127,7 @@ func TestRRF(t *testing.T) {
 		{{ID: "a"}, {ID: "b"}, {ID: "c"}},
 		{{ID: "b"}, {ID: "d"}},
 	}
-	ranked, err := RRF{}.Rank(context.Background(), groups...)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ranked := rank(groups...)
 	if len(ranked) != 4 {
 		t.Fatalf("ranked = %d results, want 4", len(ranked))
 	}

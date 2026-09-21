@@ -6,12 +6,12 @@ import (
 	"github.com/salvadorsru/dali/model"
 )
 
-func TestFuse(t *testing.T) {
+func TestRank(t *testing.T) {
 	text := []Result{{ID: "a"}, {ID: "b"}, {ID: "c"}}
 	semantic := []Result{{ID: "c"}, {ID: "d"}}
-	out := fuse(text, semantic, 10)
+	out := rank(text, semantic)
 	if len(out) != 4 {
-		t.Fatalf("fused results = %d, want 4", len(out))
+		t.Fatalf("ranked results = %d, want 4", len(out))
 	}
 	if out[0].ID != "c" {
 		t.Fatalf("top result = %q, want c (appears in both lists)", out[0].ID)

@@ -2,7 +2,6 @@ package query
 
 import (
 	"context"
-	"sort"
 	"strings"
 
 	"github.com/salvadorsru/dali/embed"
@@ -22,7 +21,6 @@ type Options struct {
 	Type   string
 	PageID string
 	Limit  int
-	Mode   Mode
 }
 
 func (o Options) limit() int {
@@ -77,53 +75,6 @@ func (s *Service) SemanticSearch(ctx context.Context, emb embed.Embedder, opts O
 		}
 	}
 	return out, nil
-}
-
-// HybridSearch fuses text and semantic rankings with Reciprocal Rank Fusion.
-func (s *Service) HybridSearch(ctx context.Context, emb embed.Embedder, opts Options) ([]Result, error) {
-	limit := opts.limit()
-	text, err := s.Search(opts.Query, limit*4)
-	if err != nil {
-		return nil, err
-	}
-	semantic, err := s.SemanticSearch(ctx, emb, Options{
-		Query:  opts.Query,
-		Type:   opts.Type,
-		PageID: opts.PageID,
-		Limit:  limit * 4,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return fuse(text, semantic, limit), nil
-}
-
-func fuse(text, semantic []Result, limit int) []Result {
-	const k = 60.0
-	scores := make(map[string]float64)
-	meta := make(map[string]Result)
-	add := func(results []Result) {
-		for rank, r := range results {
-			scores[r.ID] += 1 / (k + float64(rank+1))
-			if _, ok := meta[r.ID]; !ok {
-				meta[r.ID] = r
-			}
-		}
-	}
-	add(text)
-	add(semantic)
-
-	out := make([]Result, 0, len(scores))
-	for id, score := range scores {
-		r := meta[id]
-		r.Score = score
-		out = append(out, r)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Score > out[j].Score })
-	if len(out) > limit {
-		out = out[:limit]
-	}
-	return out
 }
 
 func resultFromNode(n *model.Node) Result {

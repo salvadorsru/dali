@@ -146,7 +146,7 @@ func cmdSemanticSearch(args []string) error {
 		fmt.Fprintf(os.Stderr, "dali: embedded %d node(s)\n", stats.Indexed)
 	}
 
-	opts := query.Options{Query: q, Type: *typ, Limit: *limit, Mode: query.ModeSemantic}
+	opts := query.Options{Query: q, Type: *typ, Limit: *limit}
 	if *page != "" {
 		id, err := svc.PageByName(*page)
 		if err != nil {
@@ -160,7 +160,9 @@ func cmdSemanticSearch(args []string) error {
 
 	var results []query.Result
 	if *hybrid {
-		results, err = svc.HybridSearch(context.Background(), emb, opts)
+		results, err = svc.UnifiedSearch(context.Background(), emb, query.UnifiedOptions{
+			Query: q, Type: *typ, PageID: opts.PageID, Limit: *limit, Mode: query.ModeHybrid,
+		})
 	} else {
 		results, err = svc.SemanticSearch(context.Background(), emb, opts)
 	}

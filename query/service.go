@@ -18,7 +18,6 @@ type Service struct {
 	db      *index.DB
 	sql     *sql.DB
 	rebuilt bool
-	ranker  Ranker
 
 	// snapshot caches the materialized document tree used by XPath. It is
 	// built lazily on first use and valid for the Service lifetime: the index
@@ -52,14 +51,14 @@ func OpenNotify(figPath string, force bool, building func()) (*Service, error) {
 		db.Close()
 		return nil, err
 	}
-	return &Service{db: db, sql: db.SQL(), rebuilt: rebuilt, ranker: RRF{}}, nil
+	return &Service{db: db, sql: db.SQL(), rebuilt: rebuilt}, nil
 }
 
 // Bind wraps an existing index for read queries without rebuilding from a
 // fig file. The index must have been populated already; the caller owns and
 // must Close it.
 func Bind(db *index.DB) *Service {
-	return &Service{db: db, sql: db.SQL(), ranker: RRF{}}
+	return &Service{db: db, sql: db.SQL()}
 }
 
 func (s *Service) Close() error { return s.db.Close() }
