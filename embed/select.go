@@ -72,6 +72,7 @@ func confirmDownload(summary string) bool {
 	}
 	if !isTerminal() {
 		fmt.Fprintln(os.Stderr, "dali: not interactive; pass --yes or set DALI_EMBED_YES=1 to allow the download")
+		fmt.Fprintln(os.Stderr, providerHint)
 		return false
 	}
 	fmt.Fprint(os.Stderr, "Download now? [y/N] ")
@@ -80,8 +81,11 @@ func confirmDownload(summary string) bool {
 	case "y", "yes":
 		return true
 	}
+	fmt.Fprintln(os.Stderr, providerHint)
 	return false
 }
+
+const providerHint = "dali: or reuse an existing embedder with DALI_EMBED_PROVIDER=ollama (Ollama, default bge-m3)"
 
 func isTerminal() bool {
 	fi, err := os.Stdin.Stat()
