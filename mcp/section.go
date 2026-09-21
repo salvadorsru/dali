@@ -53,7 +53,7 @@ func (h *handlers) sectionFigma(ctx context.Context, req *mcp.CallToolRequest, i
 	}
 	pages := pageNames(svc)
 	view := SectionView{
-		Node:     pageRef(c.Node, pages),
+		Node:     toRef(c.Node),
 		Children: toRefs(c.Children),
 		Styles:   c.Styles,
 		Images:   c.Assets,
@@ -63,11 +63,13 @@ func (h *handlers) sectionFigma(ctx context.Context, req *mcp.CallToolRequest, i
 		view.Path = append(view.Path, toRef(p))
 	}
 	if c.Parent != nil {
-		ref := pageRef(c.Parent, pages)
+		ref := toRef(c.Parent)
 		view.Parent = &ref
 	}
 	for _, a := range alternatives {
-		view.Alternatives = append(view.Alternatives, pageRef(a, pages))
+		ref := toRef(a)
+		ref.PageName = pages[a.PageID]
+		view.Alternatives = append(view.Alternatives, ref)
 	}
 	st, err := SubtreeOf(svc, node.ID, 0)
 	if err != nil {
@@ -93,13 +95,6 @@ func pageNames(svc *query.Service) map[string]string {
 		out[p.ID] = p.Name
 	}
 	return out
-}
-
-// pageRef renders a node as a NodeRef annotated with the name of its page.
-func pageRef(n *model.Node, pages map[string]string) NodeRef {
-	ref := toRef(n)
-	ref.PageName = pages[n.PageID]
-	return ref
 }
 
 // resolveSection picks the best layer whose name contains in.Name, honouring the
