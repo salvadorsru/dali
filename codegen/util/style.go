@@ -343,7 +343,7 @@ func gradientToCSS(g *ir.GradientSpec, fillType string) string {
 	var stops []string
 	for _, stop := range g.Stops {
 		color := stop.Color
-		if stop.Opacity < 1 {
+		if stop.Opacity > 0 && stop.Opacity < 1 {
 			// Approximate alpha in color
 			color = fmt.Sprintf("%s / %g", color, stop.Opacity)
 		}
