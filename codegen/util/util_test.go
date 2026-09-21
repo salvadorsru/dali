@@ -216,3 +216,14 @@ func TestTranslateStackPadding(t *testing.T) {
 		t.Errorf("overridden padding = %+v, want %+v", spec.Padding, want)
 	}
 }
+
+func TestNoQuotesInCSSOutput(t *testing.T) {
+	spec := ir.TextSpec{FontFamily: "Hedvig Letters Serif"}
+	if classes := TextToTailwind(spec); strings.Contains(classes, `"`) {
+		t.Errorf("TextToTailwind embeds double quote in class attribute: %q", classes)
+	}
+	run := ir.TextRunSpec{FontFamily: "Syne", FontStyle: "Regular"}
+	if styles := TextRunToTailwind(run); strings.Contains(styles, `"`) {
+		t.Errorf("TextRunToTailwind embeds double quote in style attribute: %q", styles)
+	}
+}

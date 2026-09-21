@@ -45,13 +45,22 @@ func TranslateText(node *model.Node) ir.TextSpec {
 	return spec
 }
 
+// fontToken prepares a font family for use in a Tailwind arbitrary value:
+// single quotes never clash with the HTML attribute delimiters, and
+// underscores replace spaces (Tailwind arbitrary values allow no spaces).
+func fontToken(family string) string {
+	family = strings.ReplaceAll(family, `"`, "")
+	family = strings.ReplaceAll(family, `'`, "")
+	return strings.ReplaceAll(family, " ", "_")
+}
+
 // TextToTailwind converts ir.TextSpec to Tailwind classes.
 func TextToTailwind(spec ir.TextSpec) string {
 	var classes []string
 
 	// Font family - map to Tailwind font classes or use arbitrary
 	if spec.FontFamily != "" {
-		classes = append(classes, fmt.Sprintf("font-[%q]", spec.FontFamily))
+		classes = append(classes, fmt.Sprintf("font-['%s']", fontToken(spec.FontFamily)))
 	}
 
 	// Font style/weight
@@ -168,7 +177,7 @@ func TextRunToTailwind(run ir.TextRunSpec) string {
 	var styles []string
 
 	if run.FontFamily != "" {
-		styles = append(styles, fmt.Sprintf("font-family:%q", run.FontFamily))
+		styles = append(styles, fmt.Sprintf("font-family:'%s'", strings.ReplaceAll(run.FontFamily, `'`, `\'`)))
 	}
 	if run.FontStyle != "" {
 		if w := fontStyleToWeight(run.FontStyle); w != "" {
