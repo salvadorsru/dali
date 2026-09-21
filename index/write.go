@@ -198,8 +198,8 @@ func (db *DB) Write(doc *model.Document) error {
 
 	// Upsert prepared statements.
 	nodeStmt, err := tx.Prepare(`INSERT OR REPLACE INTO nodes
-		(id, page_id, parent_id, type, name, position, visible, opacity, x, y, width, height, text, font_family, font_style, font_size, text_align, text_align_v, line_height, letter_spacing, decoration, rotation, clip_content, component_id, runs, path, props)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		(id, page_id, parent_id, type, name, position, visible, opacity, x, y, width, height, text, font_family, font_style, font_size, text_align, text_align_v, line_height, letter_spacing, decoration, rotation, clip_content, component_id, runs, path, props, paints, bound_variables)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
@@ -224,13 +224,21 @@ func (db *DB) Write(doc *model.Document) error {
 	defer fpStmt.Close()
 
 	for _, n := range upsert {
+		paints := ""
+		if p := n.PaintStack(); len(p.Fills)+len(p.Strokes)+len(p.Effects) > 0 {
+			paints = jsonString(p)
+		}
+		bound := ""
+		if bv := doc.BoundVariables(n); len(bv) > 0 {
+			bound = jsonString(bv)
+		}
 		if _, err := nodeStmt.Exec(
 			n.ID, n.PageID, n.ParentID, string(n.Type), n.Name, n.Position,
 			boolInt(n.Visible), n.Opacity, n.X, n.Y, n.Width, n.Height,
 			n.Text, n.FontFamily, n.FontStyle, n.FontSize,
 			n.TextAlign, n.TextAlignV, n.LineHeight, n.LetterSpacing, n.Decoration,
 			n.Rotation, boolInt(n.ClipContent), n.ComponentID,
-			jsonString(n.Runs), n.Path, jsonString(n.Props),
+			jsonString(n.Runs), n.Path, jsonString(n.Props), paints, bound,
 		); err != nil {
 			return err
 		}
@@ -285,6 +293,7 @@ func nodeFingerprint(n *model.Node) string {
 		n.Text, n.FontFamily, n.FontStyle, n.FontSize, n.ComponentID,
 		n.LetterSpacing, n.LineHeight, n.TextAlign, n.Rotation, n.ClipContent, n.Decoration,
 		n.Path, n.Runs, jsonString(n.Props))
+	fmt.Fprintf(h, "%s\x00%s\x00", jsonString(n.PaintStack()), n.BoundVarsJSON())
 	hashes := make([]string, 0, len(n.Images))
 	for _, img := range n.Images {
 		hashes = append(hashes, img.Hash)

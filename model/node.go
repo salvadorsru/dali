@@ -48,6 +48,11 @@ type Node struct {
 	Runs          []TextRun
 	Props         []PropOverride
 
+	// PaintData and BoundVars are populated when a node is read back from the
+	// index; they are not set during parsing (raw paint payloads live there).
+	PaintData *Paints
+	BoundVars map[string]string
+
 	ComponentID string
 
 	Children []*Node

@@ -10,7 +10,7 @@ import (
 	_ "modernc.org/sqlite/vec"
 )
 
-const SchemaVersion = 6
+const SchemaVersion = 7
 
 type DB struct {
 	sql *sql.DB
@@ -89,7 +89,9 @@ func (db *DB) migrate() error {
 			component_id TEXT,
 			runs TEXT,
 			path TEXT,
-			props TEXT
+			props TEXT,
+			paints TEXT,
+			bound_variables TEXT
 		)`,
 		`CREATE INDEX IF NOT EXISTS nodes_type_idx ON nodes(type)`,
 		`CREATE INDEX IF NOT EXISTS nodes_name_idx ON nodes(name)`,
@@ -181,7 +183,7 @@ func (db *DB) migrate() error {
 // versions, so old indexes keep working until the next rebuild.
 func (db *DB) ensureColumns() error {
 	want := map[string][]string{
-		"nodes": {"text_align", "text_align_v", "line_height", "letter_spacing", "decoration", "rotation", "clip_content", "runs", "path", "props"},
+		"nodes": {"text_align", "text_align_v", "line_height", "letter_spacing", "decoration", "rotation", "clip_content", "runs", "path", "props", "paints", "bound_variables"},
 	}
 	for table, cols := range want {
 		rows, err := db.sql.Query(`PRAGMA table_info(` + table + `)`)

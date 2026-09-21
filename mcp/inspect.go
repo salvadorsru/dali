@@ -2,12 +2,63 @@ package mcp
 
 import (
 	"context"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/salvadorsru/dali/model"
 	"github.com/salvadorsru/dali/query"
 )
+
+// layoutModeOf returns a node's auto-layout mode (HORIZONTAL, VERTICAL) from
+// its LAYOUT style, empty when the node has no auto-layout.
+func layoutModeOf(styles []model.Style) string {
+	if m := layoutDataOf(styles); m != nil {
+		mode, _ := m["layoutMode"].(string)
+		return strings.ToUpper(mode)
+	}
+	return ""
+}
+
+// absOf returns a node's absolute position by summing x/y along its ancestor
+// chain. Node x/y are relative to the parent, so the page origin is the sum.
+func absOf(svc *query.Service, id string) (float64, float64) {
+	path, err := svc.Path(id)
+	if err != nil {
+		return 0, 0
+	}
+	var x, y float64
+	for _, p := range path {
+		x += p.X
+		y += p.Y
+	}
+	return x, y
+}
+
+// isFreePositioned reports whether a node is placed absolutely, i.e. its parent
+// has no auto-layout.
+func isFreePositioned(svc *query.Service, id string) bool {
+	parent, err := svc.Parent(id)
+	if err != nil || parent == nil {
+		return false
+	}
+	styles, err := svc.StylesOf(parent.ID)
+	if err != nil {
+		return false
+	}
+	switch layoutModeOf(styles) {
+	case "", "NONE":
+		return true
+	}
+	return false
+}
+
+func enrich(svc *query.Service, ref *NodeRef, styles []model.Style) {
+	ref.Layout = layoutOf(styles)
+	ref.LayoutData = layoutDataOf(styles)
+	ref.AbsX, ref.AbsY = absOf(svc, ref.ID)
+	ref.FreePositioned = isFreePositioned(svc, ref.ID)
+}
 
 type idInput struct {
 	File string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
@@ -32,7 +83,7 @@ func (h *handlers) getNode(ctx context.Context, req *mcp.CallToolRequest, in idI
 	if view.Styles, err = svc.StylesOf(in.ID); err != nil {
 		return nil, NodeView{}, err
 	}
-	view.Node.Layout = layoutOf(view.Styles)
+	enrich(svc, &view.Node, view.Styles)
 	return nil, view, nil
 }
 
@@ -62,7 +113,7 @@ func (h *handlers) getContext(ctx context.Context, req *mcp.CallToolRequest, in 
 		Styles:   c.Styles,
 		Assets:   c.Assets,
 	}
-	view.Node.Layout = layoutOf(view.Styles)
+	enrich(svc, &view.Node, view.Styles)
 	for _, p := range c.Path {
 		view.Path = append(view.Path, toRef(p))
 	}
@@ -161,20 +212,36 @@ func SubtreeOf(svc *query.Service, id string, maxDepth int) (SubtreeResult, erro
 	if err != nil {
 		return SubtreeResult{}, err
 	}
+	rootStyles, err := svc.StylesOf(id)
+	if err != nil {
+		return SubtreeResult{}, err
+	}
 	out := SubtreeResult{Root: toRef(root), Descendants: make([]SubtreeView, 0, len(items))}
+	enrich(svc, &out.Root, rootStyles)
+
+	// Absolute positions accumulate along the tree; items arrive in pre-order
+	// (parent before children), so each node's parent is already resolved.
+	absX := map[string]float64{id: out.Root.AbsX}
+	absY := map[string]float64{id: out.Root.AbsY}
+	layoutMode := map[string]string{id: layoutModeOf(rootStyles)}
 	for _, it := range items {
 		view := SubtreeView{Node: toRef(it.Node), Depth: it.Depth}
-		if s := sby[it.Node.ID]; len(s) > 0 {
-			view.Styles = s
-			view.Node.Layout = layoutOf(s)
+		s := sby[it.Node.ID]
+		view.Styles = s
+		view.Node.Layout = layoutOf(s)
+		view.Node.LayoutData = layoutDataOf(s)
+		view.Node.AbsX = absX[it.Node.ParentID] + it.Node.X
+		view.Node.AbsY = absY[it.Node.ParentID] + it.Node.Y
+		absX[it.Node.ID] = view.Node.AbsX
+		absY[it.Node.ID] = view.Node.AbsY
+		if mode := layoutMode[it.Node.ParentID]; mode == "" || mode == "NONE" {
+			view.Node.FreePositioned = true
 		}
+		layoutMode[it.Node.ID] = layoutModeOf(s)
 		if a := aby[it.Node.ID]; len(a) > 0 {
 			view.Images = a
 		}
 		out.Descendants = append(out.Descendants, view)
-	}
-	if rootStyles, err := svc.StylesOf(id); err == nil {
-		out.Root.Layout = layoutOf(rootStyles)
 	}
 	return out, nil
 }

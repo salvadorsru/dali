@@ -8,7 +8,7 @@ import (
 	"github.com/salvadorsru/dali/model"
 )
 
-const nodeColumns = `id, page_id, parent_id, type, name, position, visible, opacity, x, y, width, height, text, font_family, font_style, font_size, text_align, text_align_v, line_height, letter_spacing, decoration, rotation, clip_content, component_id, runs, path, props`
+const nodeColumns = `id, page_id, parent_id, type, name, position, visible, opacity, x, y, width, height, text, font_family, font_style, font_size, text_align, text_align_v, line_height, letter_spacing, decoration, rotation, clip_content, component_id, runs, path, props, paints, bound_variables`
 
 type scanner interface {
 	Scan(dest ...any) error
@@ -17,14 +17,14 @@ type scanner interface {
 func scanNode(sc scanner) (*model.Node, error) {
 	n := &model.Node{}
 	var visible, clip int
-	var runs, props string
+	var runs, props, paints, boundVars string
 	err := sc.Scan(
 		&n.ID, &n.PageID, &n.ParentID, &n.Type, &n.Name, &n.Position,
 		&visible, &n.Opacity, &n.X, &n.Y, &n.Width, &n.Height,
 		&n.Text, &n.FontFamily, &n.FontStyle, &n.FontSize,
 		&n.TextAlign, &n.TextAlignV, &n.LineHeight, &n.LetterSpacing,
 		&n.Decoration, &n.Rotation, &clip, &n.ComponentID,
-		&runs, &n.Path, &props,
+		&runs, &n.Path, &props, &paints, &boundVars,
 	)
 	if err != nil {
 		return nil, err
@@ -33,7 +33,31 @@ func scanNode(sc scanner) (*model.Node, error) {
 	n.ClipContent = clip != 0
 	n.Runs = parseRuns(runs)
 	n.Props = parseProps(props)
+	n.PaintData = parsePaints(paints)
+	n.BoundVars = parseBoundVars(boundVars)
 	return n, nil
+}
+
+func parsePaints(raw string) *model.Paints {
+	if raw == "" {
+		return nil
+	}
+	var p model.Paints
+	if json.Unmarshal([]byte(raw), &p) == nil {
+		return &p
+	}
+	return nil
+}
+
+func parseBoundVars(raw string) map[string]string {
+	if raw == "" {
+		return nil
+	}
+	var out map[string]string
+	if json.Unmarshal([]byte(raw), &out) == nil {
+		return out
+	}
+	return nil
 }
 
 func parseRuns(raw string) []model.TextRun {
@@ -214,14 +238,14 @@ func (s *Service) Subtree(id string, maxDepth int) ([]SubtreeItem, error) {
 func scanNodeDepth(rows *sql.Rows) (*model.Node, int, error) {
 	n := &model.Node{}
 	var visible, clip, depth int
-	var runs, props string
+	var runs, props, paints, boundVars string
 	err := rows.Scan(
 		&n.ID, &n.PageID, &n.ParentID, &n.Type, &n.Name, &n.Position,
 		&visible, &n.Opacity, &n.X, &n.Y, &n.Width, &n.Height,
 		&n.Text, &n.FontFamily, &n.FontStyle, &n.FontSize,
 		&n.TextAlign, &n.TextAlignV, &n.LineHeight, &n.LetterSpacing,
 		&n.Decoration, &n.Rotation, &clip, &n.ComponentID,
-		&runs, &n.Path, &props, &depth,
+		&runs, &n.Path, &props, &paints, &boundVars, &depth,
 	)
 	if err != nil {
 		return nil, 0, err
@@ -230,5 +254,7 @@ func scanNodeDepth(rows *sql.Rows) (*model.Node, int, error) {
 	n.ClipContent = clip != 0
 	n.Runs = parseRuns(runs)
 	n.Props = parseProps(props)
+	n.PaintData = parsePaints(paints)
+	n.BoundVars = parseBoundVars(boundVars)
 	return n, depth, nil
 }

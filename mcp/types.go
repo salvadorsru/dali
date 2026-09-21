@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/salvadorsru/dali/model"
@@ -12,17 +13,22 @@ type NodeRef struct {
 	ID       string  `json:"id" jsonschema:"node id, e.g. 123:456"`
 	Type     string  `json:"type" jsonschema:"node type, e.g. FRAME, TEXT, SYMBOL"`
 	Name     string  `json:"name" jsonschema:"node name"`
+	ParentID string  `json:"parent_id,omitempty" jsonschema:"id of the parent node"`
 	Text     string  `json:"text,omitempty" jsonschema:"text content for TEXT nodes"`
 	Page     string  `json:"page,omitempty" jsonschema:"page name"`
 	PagePath string  `json:"page_path,omitempty" jsonschema:"path from page to node"`
 	Score    float64 `json:"score,omitempty" jsonschema:"similarity score for semantic results"`
 
-	X       float64 `json:"x" jsonschema:"left offset"`
-	Y       float64 `json:"y" jsonschema:"top offset"`
+	X       float64 `json:"x" jsonschema:"left offset relative to the parent node"`
+	Y       float64 `json:"y" jsonschema:"top offset relative to the parent node"`
+	AbsX    float64 `json:"abs_x,omitempty" jsonschema:"absolute left offset from the page origin"`
+	AbsY    float64 `json:"abs_y,omitempty" jsonschema:"absolute top offset from the page origin"`
 	Width   float64 `json:"width" jsonschema:"width"`
 	Height  float64 `json:"height" jsonschema:"height"`
 	Visible bool    `json:"visible" jsonschema:"visible"`
 	Opacity float64 `json:"opacity" jsonschema:"opacity"`
+
+	FreePositioned bool `json:"free_positioned,omitempty" jsonschema:"true when the parent has no auto-layout, so x/y place the node absolutely"`
 
 	FontFamily    string  `json:"font_family,omitempty"`
 	FontStyle     string  `json:"font_style,omitempty"`
@@ -39,12 +45,18 @@ type NodeRef struct {
 	Runs   []model.TextRun      `json:"runs,omitempty" jsonschema:"styled text runs spanning the text"`
 	Props  []model.PropOverride `json:"props,omitempty" jsonschema:"component override bindings on instances"`
 	Layout string               `json:"layout,omitempty" jsonschema:"resolved layout style: direction, gap, padding, radius"`
+
+	LayoutData     map[string]any    `json:"layout_data,omitempty" jsonschema:"structured auto-layout: layoutMode, per-axis sizing, alignment, gap, padding, radius, stroke"`
+	Paints         *model.Paints     `json:"paints,omitempty" jsonschema:"ordered fill, stroke and effect stack"`
+	BoundVariables map[string]string `json:"bound_variables,omitempty" jsonschema:"design-variable bindings by field name"`
+	ViewBox        string            `json:"view_box,omitempty" jsonschema:"SVG viewBox for vector paths, e.g. 0 0 24 24"`
 }
 
 func toRef(n *model.Node) NodeRef {
 	ref := NodeRef{
 		ID: n.ID, Type: string(n.Type), Name: n.Name, Text: n.Text, Page: n.PageID,
-		X: n.X, Y: n.Y, Width: n.Width, Height: n.Height, Visible: n.Visible, Opacity: n.Opacity,
+		ParentID: n.ParentID,
+		X:        n.X, Y: n.Y, Width: n.Width, Height: n.Height, Visible: n.Visible, Opacity: n.Opacity,
 		FontFamily: n.FontFamily, FontStyle: n.FontStyle, FontSize: n.FontSize,
 		TextAlign: n.TextAlign, TextAlignV: n.TextAlignV, LineHeight: n.LineHeight,
 		LetterSpacing: n.LetterSpacing, Decoration: n.Decoration,
@@ -56,6 +68,11 @@ func toRef(n *model.Node) NodeRef {
 	}
 	if len(n.Props) > 0 {
 		ref.Props = n.Props
+	}
+	ref.Paints = n.PaintData
+	ref.BoundVariables = n.BoundVars
+	if n.Path != "" && n.Width > 0 && n.Height > 0 {
+		ref.ViewBox = fmt.Sprintf("0 0 %g %g", n.Width, n.Height)
 	}
 	return ref
 }
@@ -77,6 +94,20 @@ func layoutOf(styles []model.Style) string {
 		}
 	}
 	return ""
+}
+
+// layoutDataOf returns the structured LAYOUT style value applied to a node
+// (layoutMode, per-axis sizing, alignment, gap, padding, radius, stroke).
+func layoutDataOf(styles []model.Style) map[string]any {
+	for _, st := range styles {
+		if !strings.EqualFold(st.Kind, "LAYOUT") {
+			continue
+		}
+		if m, ok := st.Value.(map[string]any); ok {
+			return m
+		}
+	}
+	return nil
 }
 
 // filterInput is shared by every tool that lists a collection with an optional
