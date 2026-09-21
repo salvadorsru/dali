@@ -13,11 +13,10 @@ import (
 // serverInfo is the record of a managed llama-server left running so later
 // commands can reuse it instead of paying the model load cost again.
 type serverInfo struct {
-	URL     string `json:"url"`
-	PID     int    `json:"pid"`
-	Tag     string `json:"tag"`
-	Model   string `json:"model"`
-	Started string `json:"started"`
+	URL   string `json:"url"`
+	PID   int    `json:"pid"`
+	Tag   string `json:"tag"`
+	Model string `json:"model"`
 }
 
 // CacheDir is where Dalí keeps downloaded engines, models and the running

@@ -1,11 +1,9 @@
 package embed
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"sort"
 	"time"
@@ -16,7 +14,6 @@ import (
 type OpenAI struct {
 	BaseURL string
 	Name    string
-	APIKey  string
 	Batch   int
 	client  *http.Client
 }
@@ -50,23 +47,9 @@ type openAIResponse struct {
 }
 
 func (o *OpenAI) Embed(ctx context.Context, texts []string) ([][]float32, error) {
-	batch := o.Batch
-	if batch <= 0 {
-		batch = defaultBatch
-	}
-	out := make([][]float32, 0, len(texts))
-	for start := 0; start < len(texts); start += batch {
-		end := start + batch
-		if end > len(texts) {
-			end = len(texts)
-		}
-		vectors, err := o.embedBatch(ctx, texts[start:end])
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, vectors...)
-	}
-	return out, nil
+	return batchVectors(o.Batch, texts, func(b []string) ([][]float32, error) {
+		return o.embedBatch(ctx, b)
+	})
 }
 
 func (o *OpenAI) embedBatch(ctx context.Context, texts []string) ([][]float32, error) {
@@ -96,28 +79,9 @@ func (o *OpenAI) embedBatch(ctx context.Context, texts []string) ([][]float32, e
 }
 
 func (o *OpenAI) post(ctx context.Context, body []byte, want int) ([][]float32, bool, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.BaseURL+"/v1/embeddings", bytes.NewReader(body))
+	data, retry, err := postJSON(ctx, o.client, o.BaseURL+"/v1/embeddings", body)
 	if err != nil {
-		return nil, false, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if o.APIKey != "" {
-		req.Header.Set("Authorization", "Bearer "+o.APIKey)
-	}
-	resp, err := o.client.Do(req)
-	if err != nil {
-		return nil, true, err
-	}
-	defer resp.Body.Close()
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, true, err
-	}
-	if resp.StatusCode >= 500 {
-		return nil, true, fmt.Errorf("embeddings status %d: %s", resp.StatusCode, data)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, false, fmt.Errorf("embeddings status %d: %s", resp.StatusCode, data)
+		return nil, retry, err
 	}
 	var parsed openAIResponse
 	if err := json.Unmarshal(data, &parsed); err != nil {

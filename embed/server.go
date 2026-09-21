@@ -247,8 +247,8 @@ func launch(bin, model string, extra []string) (*Server, error) {
 	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(),
-		"LD_LIBRARY_PATH="+dir+pathListSeparator()+os.Getenv("LD_LIBRARY_PATH"),
-		"DYLD_LIBRARY_PATH="+dir+pathListSeparator()+os.Getenv("DYLD_LIBRARY_PATH"))
+		"LD_LIBRARY_PATH="+dir+string(os.PathListSeparator)+os.Getenv("LD_LIBRARY_PATH"),
+		"DYLD_LIBRARY_PATH="+dir+string(os.PathListSeparator)+os.Getenv("DYLD_LIBRARY_PATH"))
 	logs := &bytes.Buffer{}
 	cmd.Stdout = logs
 	cmd.Stderr = logs
@@ -292,13 +292,6 @@ func (s *Server) waitReady(timeout time.Duration) error {
 		time.Sleep(500 * time.Millisecond)
 	}
 	return fmt.Errorf("llama-server did not become ready")
-}
-
-func pathListSeparator() string {
-	if runtime.GOOS == "windows" {
-		return ";"
-	}
-	return ":"
 }
 
 func tail(s string, max int) string {
@@ -435,7 +428,8 @@ func (m *Managed) start(ctx context.Context) error {
 		return err
 	}
 	modelPath := filepath.Join(root, "models", sibling.Filename)
-	needModel := !exists(modelPath)
+	_, statErr := os.Stat(modelPath)
+	needModel := statErr != nil && os.IsNotExist(statErr)
 
 	if needBin || needModel {
 		var lines []string
@@ -486,10 +480,9 @@ func (m *Managed) start(ctx context.Context) error {
 	m.owned = true
 	m.client = NewOpenAI(srv.URL, m.Model())
 	info := serverInfo{
-		URL:     srv.URL,
-		Tag:     m.tag(),
-		Model:   m.Model(),
-		Started: time.Now().Format(time.RFC3339),
+		URL:   srv.URL,
+		Tag:   m.tag(),
+		Model: m.Model(),
 	}
 	if srv.cmd != nil && srv.cmd.Process != nil {
 		info.PID = srv.cmd.Process.Pid
@@ -500,11 +493,6 @@ func (m *Managed) start(ctx context.Context) error {
 
 func hfURL(repo, file string) string {
 	return fmt.Sprintf("https://huggingface.co/%s/resolve/main/%s", repo, file)
-}
-
-func exists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }
 
 func (m *Managed) confirm(summary string) bool {
