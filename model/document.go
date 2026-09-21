@@ -463,10 +463,6 @@ func (d *Document) Instances() []*Node {
 	return d.byType(func(n *Node) bool { return n.Type == TypeInstance })
 }
 
-func (d *Document) TextNodes() []*Node {
-	return d.byType(func(n *Node) bool { return n.Type == TypeText })
-}
-
 func (d *Document) byType(match func(*Node) bool) []*Node {
 	var out []*Node
 	for _, n := range d.order {
