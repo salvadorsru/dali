@@ -205,17 +205,3 @@ func num(m map[string]any, key string) float64 {
 	}
 	return 0
 }
-
-func min(a, b float64) float64 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b float64) float64 {
-	if a > b {
-		return a
-	}
-	return b
-}
