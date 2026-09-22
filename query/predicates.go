@@ -27,7 +27,7 @@ func (s *Service) Query(expr string) ([]*model.Node, error) {
 		return nil, nil
 	}
 	if strings.HasPrefix(expr, "/") {
-		return nil, fmt.Errorf("expressions starting with / are XPath; use Service.XPath (CLI: dali xpath)")
+		return nil, fmt.Errorf("expressions starting with / are XPath; use Service.XPath")
 	}
 	terms, err := splitAnd(expr)
 	if err != nil {

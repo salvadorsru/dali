@@ -33,7 +33,6 @@ var commands = map[string]func([]string) error{
 	"variables":       cmdVariables,
 	"styles":          cmdStyles,
 	"query":           cmdQuery,
-	"xpath":           cmdXPath,
 	"index":           cmdIndex,
 	"extract-assets":  cmdExtractAssets,
 	"lint":            cmdLint,
@@ -208,8 +207,8 @@ Commands:
   styles                      List style definitions (name, kind, value, uses)
   query <expression>          Structural query DSL (type=, name~, text~, font=, page~,
                               component=, visible=, width>=, height<=, descendants()...
-                              terms combine with AND)
-  xpath <expression>          XPath subset over the tree (/ // * @name= @name~ contains()) [--limit N]
+                              terms combine with AND); a leading / uses the XPath
+                              subset (/ // * @name= @name~ contains()) [--limit N]
   lint [--preset P]          Design + accessibility checks (recommended, strict, accessibility)
   analyze <kind>             Geometry stats: spacing | clusters | overlaps
                               (--min-ratio, --min-count, --limit)

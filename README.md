@@ -159,12 +159,14 @@ Structural queries, as a DSL or XPath subset:
 ```bash
 dali design.fig query 'type=FRAME name~"card"'
 dali design.fig query 'text~price AND width>=200'
-dali design.fig xpath '//FRAME[@name~"card"]'
+dali design.fig query '//FRAME[@name~"card"]' --limit 10   # leading / = XPath subset
 ```
 
 The DSL terms combine with `AND`: `type=`, `name~`, `text~`, `font=`,
 `page~`, `component=`, `visible=`, `width>=`, `height<=`, `descendants()`.
-When nothing matches, Dalí suggests near-miss names.
+A leading `/` routes to the XPath subset (`//FRAME[@name~'card']`,
+`/DOCUMENT/CANVAS`, `//*[contains(@name,'button')]`). When nothing matches,
+Dalí suggests near-miss names.
 
 Semantic search for conceptual queries — it builds the vector index on first
 run and needs a download confirmed once (skip the prompt with `--yes` or
