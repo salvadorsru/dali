@@ -127,13 +127,11 @@ func resolvePage(svc *query.Service, name string) (string, error) {
 	return id, nil
 }
 
-// ensureEmbedded builds missing embeddings and reports progress, so the vector
-// index is current. indexEmbeddings is its only caller; searches never index.
+// ensureEmbedded builds missing embeddings, so the vector index is current.
+// indexEmbeddings is its only caller; searches never index.
 func ensureEmbedded(ctx context.Context, svc *query.Service, emb embed.Embedder, note *notifier) (semantic.Stats, error) {
 	note.start("embedding")
-	stats, err := semantic.IndexWithProgress(ctx, svc.DB(), emb, func(done, total int) {
-		note.progress(fmt.Sprintf("embedding (%d/%d)", done, total), float64(done), float64(total))
-	})
+	stats, err := semantic.IndexWithProgress(ctx, svc.DB(), emb, func(int, int) {})
 	if err != nil {
 		return stats, err
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -14,45 +15,29 @@ import (
 	"github.com/salvadorsru/dali/internal/query"
 )
 
-const progressToken = "progressToken"
-
 // Version is reported to MCP clients. The CLI overlays its build-time version
 // before serving; providers and tests may leave it at the dev default.
 var Version = "dev"
 
-// notifier reports indexing progress to the MCP client as progress
-// notifications (only when the client supplies a progress token) and always
-// mirrors status lines to stderr, which editors surface in server logs.
+// notifier mirrors status lines to stderr, which editors surface in server
+// logs. It never sends notifications/progress: clients like Cursor inject
+// _meta.progressToken (often the JSON-RPC id) without registering it, and
+// echoing it back kills the stdio session ("progress notification for an
+// unknown token").
 type notifier struct {
-	ctx     context.Context
-	session *mcp.ServerSession
-	token   any
+	out io.Writer
 }
 
-func newNotifier(ctx context.Context, req *mcp.CallToolRequest) *notifier {
-	return &notifier{ctx: ctx, session: req.Session, token: req.Params.Meta[progressToken]}
+func newNotifier(context.Context, *mcp.CallToolRequest) *notifier {
+	return &notifier{out: os.Stderr}
 }
 
 func (n *notifier) start(message string) {
-	fmt.Fprintf(os.Stderr, "dali: %s…\n", message)
-	n.progress(message, 0, 0)
+	fmt.Fprintf(n.out, "dali: %s…\n", message)
 }
 
 func (n *notifier) done(message string) {
-	fmt.Fprintf(os.Stderr, "dali: %s\n", message)
-	n.progress(message, 1, 1)
-}
-
-func (n *notifier) progress(message string, done, total float64) {
-	if n.token == nil {
-		return
-	}
-	_ = n.session.NotifyProgress(n.ctx, &mcp.ProgressNotificationParams{
-		ProgressToken: n.token,
-		Message:       message,
-		Progress:      done,
-		Total:         total,
-	})
+	fmt.Fprintf(n.out, "dali: %s\n", message)
 }
 
 type handlers struct {
@@ -138,7 +123,8 @@ func (h *handlers) resolve(file string) (string, error) {
 }
 
 // service returns the query service for a fig file, opening and caching it.
-// When the structural index is rebuilt on first use, the notifier reports it.
+// When the structural index is rebuilt on first use, the notifier logs it to
+// stderr.
 func (h *handlers) service(file string, note *notifier) (*query.Service, error) {
 	abs, err := h.resolve(file)
 	if err != nil {

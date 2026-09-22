@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -526,9 +527,10 @@ func TestLayoutOf(t *testing.T) {
 	}
 }
 
-// TestIndexNotification verifies the server reports structural indexing via
-// progress notifications when the client supplies a progress token.
-func TestIndexNotification(t *testing.T) {
+// TestNoProgressNotifications verifies the server never sends progress
+// notifications, even when the client supplies a progress token. Clients like
+// Cursor inject an unregistered token and kill the session when it is echoed.
+func TestNoProgressNotifications(t *testing.T) {
 	if _, err := os.Stat(sample); err != nil {
 		t.Skip("sample fig not present")
 	}
@@ -577,22 +579,23 @@ func TestIndexNotification(t *testing.T) {
 		t.Fatalf("search_figma returned no content: %+v body=%q", res, textOf(res))
 	}
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		mu.Lock()
-		done := len(notes)
-		mu.Unlock()
-		if done >= 2 {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	time.Sleep(100 * time.Millisecond)
 	mu.Lock()
 	defer mu.Unlock()
-	if len(notes) != 2 {
-		t.Fatalf("expected 2 progress notifications, got %v", notes)
+	if len(notes) != 0 {
+		t.Fatalf("expected 0 progress notifications, got %v", notes)
 	}
-	if notes[0] != "indexing notice.fig" || notes[1] != "indexed notice.fig" {
-		t.Fatalf("unexpected notifications: %v", notes)
+}
+
+// TestNotifierLogsToStderr verifies indexing status still reaches stderr even
+// though no progress notifications are emitted.
+func TestNotifierLogsToStderr(t *testing.T) {
+	var buf bytes.Buffer
+	n := &notifier{out: &buf}
+	n.start("indexing x")
+	n.done("indexed x")
+	want := "dali: indexing x…\ndali: indexed x\n"
+	if buf.String() != want {
+		t.Fatalf("stderr = %q, want %q", buf.String(), want)
 	}
 }
