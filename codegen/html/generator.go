@@ -33,7 +33,9 @@ func (g *HTMLGenerator) GenerateComponent(spec ir.ComponentSpec, tokens ir.Token
 	}
 
 	// HTML template - render first child as root, or component itself
-	b.WriteString("<!-- Component: " + spec.Name + " -->\n")
+	b.WriteString("<!-- Component: ")
+	b.WriteString(spec.Name)
+	b.WriteString(" -->\n")
 	root := ir.NodeSpec{
 		ID:       spec.ID,
 		Name:     spec.Name,
@@ -99,7 +101,7 @@ func (g *HTMLGenerator) renderElement(spec ir.NodeSpec, indent string) string {
 
 	// Children
 	for _, child := range spec.Children {
-		b.WriteString(g.renderChildElement(child, indent+"  "))
+		b.WriteString(g.renderChildElidable(child, indent+"  ", spec.Layout.Mode != "" && spec.Layout.Mode != "NONE"))
 	}
 
 	// Text content
@@ -130,6 +132,34 @@ func (g *HTMLGenerator) renderElement(spec ir.NodeSpec, indent string) string {
 	return b.String()
 }
 
+// renderChildElidable renders a child element, eliding transparent wrappers.
+//
+// A node that satisfies ir.NodeSpec.PureWrapper — a bare frame or group with no
+// text, no vector path, no fills/strokes/effects, no partial opacity or
+// rotation, and no layout of its own — contributes no HTML layer of its own: no
+// visuals, no flex-box, no highlighted block. Emitting a <div> for it only
+// nestrings the output. So when such a node is found, its children are rendered
+// in its place:
+//   - zero renderable children → nothing is emitted;
+//   - a single renderable child  → that child is rendered in place (collapsed);
+//   - several renderable children → each is rendered in place (flattened).
+//
+// The wrapper is kept when it is a direct flex/grid item of an auto-layout
+// parent (inFlexContainer). In Figma each auto-layout child is one layout item;
+// eliding the wrapper there would merge sibling items and change the layout.
+// It is also kept when it would not render as a generic <div> (e.g. a semantic
+// <section> or <main> landmark must never be elided).
+func (g *HTMLGenerator) renderChildElidable(child ir.NodeSpec, indent string, inFlexContainer bool) string {
+	if inFlexContainer || g.nodeTypeToTag(child.Type) != "div" || !child.PureWrapper() {
+		return g.renderChildElement(child, indent)
+	}
+	var b strings.Builder
+	for _, grandchild := range child.Children {
+		b.WriteString(g.renderChildElidable(grandchild, indent, false))
+	}
+	return b.String()
+}
+
 func (g *HTMLGenerator) renderChildElement(child ir.NodeSpec, indent string) string {
 	var b strings.Builder
 	tag := g.nodeTypeToTag(child.Type)
@@ -149,7 +179,7 @@ func (g *HTMLGenerator) renderChildElement(child ir.NodeSpec, indent string) str
 	b.WriteString(fmt.Sprintf("%s<%s%s%s>\n", indent, tag, classAttr, style))
 
 	for _, grandchild := range child.Children {
-		b.WriteString(g.renderChildElement(grandchild, indent+"  "))
+		b.WriteString(g.renderChildElidable(grandchild, indent+"  ", child.Layout.Mode != "" && child.Layout.Mode != "NONE"))
 	}
 
 	if child.Text.Content != "" {

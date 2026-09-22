@@ -31,6 +31,36 @@ type NodeSpec struct {
 	Images      []AssetSpec
 }
 
+// PureWrapper reports whether the node renders as a transparent wrapper around
+// its children: no text, no vector path, no fills/strokes/effects, no partial
+// opacity or rotation, and no own layout (mode NONE where gap and padding are
+// zero). Such a node — a bare Figma frame or group — has no visual or layout
+// contribution of its own, so an HTML generator may safely drop it.
+func (n NodeSpec) PureWrapper() bool {
+	if n.Text.Content != "" || len(n.Text.Runs) > 0 {
+		return false
+	}
+	if n.Vector.Path != "" {
+		return false
+	}
+	if len(n.Styles.Fills) > 0 || len(n.Styles.Strokes) > 0 || len(n.Styles.Effects) > 0 {
+		return false
+	}
+	if op := n.Styles.Opacity; op > 0 && op < 1 {
+		return false
+	}
+	if n.Styles.Rotation != 0 {
+		return false
+	}
+	if n.Layout.Mode != "" && n.Layout.Mode != "NONE" {
+		return false
+	}
+	if n.Layout.Gap > 0 || n.Layout.Padding != (PaddingSpec{}) {
+		return false
+	}
+	return true
+}
+
 // TextSpec holds text-specific properties.
 type TextSpec struct {
 	Content       string
@@ -153,11 +183,11 @@ type StrokeSpec struct {
 
 // EffectSpec represents a visual effect.
 type EffectSpec struct {
-	Type   string // DROP_SHADOW, INNER_SHADOW, LAYER_BLUR, BACKGROUND_BLUR
-	Color  string
-	Offset Point
-	Radius float64
-	Spread float64
+	Type    string // DROP_SHADOW, INNER_SHADOW, LAYER_BLUR, BACKGROUND_BLUR
+	Color   string
+	Offset  Point
+	Radius  float64
+	Spread  float64
 	Visible bool
 }
 
