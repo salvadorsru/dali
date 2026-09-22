@@ -8,8 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/salvadorsru/dali/embed"
-	"github.com/salvadorsru/dali/output"
+	"github.com/salvadorsru/dali/internal/embed"
+	"github.com/salvadorsru/dali/internal/output"
 )
 
 type configTarget struct {

@@ -9,7 +9,7 @@ import (
 	"math/rand"
 	"strings"
 
-	"github.com/salvadorsru/dali/model"
+	"github.com/salvadorsru/dali/internal/model"
 )
 
 type Spec struct {

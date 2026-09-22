@@ -20,33 +20,33 @@ index you can delete at any time. CLI and MCP share the same `query` layer.
 
 | Package      | Responsibility                                      |
 | ------------ | --------------------------------------------------- |
-| `kiwi/`      | Kiwi schema decoding and dynamic message decoding   |
-| `parser/`    | ZIP/chunk decompression and raw message parsing     |
-| `model/`     | Build the document tree from `nodeChanges`          |
-| `index/`     | SQLite schema, writes, FTS5, and vector storage     |
-| `query/`     | Read-side query API and SQL ownership               |
-| `embed/`     | Embedding interface and embedding providers         |
-| `semantic/`  | Semantic text generation and incremental embeddings |
-| `quality/`   | Design linting and geometry analysis                |
-| `codegen/`   | HTML + Tailwind code generation (IR, generator, tokens) |
-| `assets/`    | Image extraction                                    |
-| `workspace/` | `.dali/` path layout                                |
-| `output/`    | Output handling                                     |
-| `mcp/`       | MCP server                                          |
+| `internal/kiwi/`      | Kiwi schema decoding and dynamic message decoding   |
+| `internal/parser/`    | ZIP/chunk decompression and raw message parsing     |
+| `internal/model/`     | Build the document tree from `nodeChanges`          |
+| `internal/index/`     | SQLite schema, writes, FTS5, and vector storage     |
+| `internal/query/`     | Read-side query API and SQL ownership               |
+| `internal/embed/`     | Embedding interface and embedding providers         |
+| `internal/semantic/`  | Semantic text generation and incremental embeddings |
+| `internal/quality/`   | Design linting and geometry analysis                |
+| `internal/codegen/`   | HTML code generation (inline CSS or Tailwind: IR, generator, tokens) |
+| `internal/assets/`    | Image extraction                                    |
+| `internal/workspace/` | `.dali/` path layout                                |
+| `internal/output/`    | Output handling                                     |
+| `internal/mcp/`       | MCP server                                          |
 | `cmd/dali/`  | CLI entry point                                     |
 
 ### Scope
 
-The core is `kiwi/` → `parser/` → `model/` → `index/` → `query/`, plus
-`embed/`, `semantic/`, `mcp/` and `cmd/dali/`. That is where correctness and
+The core is `internal/kiwi/` → `internal/parser/` → `internal/model/` → `internal/index/` → `internal/query/`, plus
+`internal/embed/`, `internal/semantic/`, `internal/mcp/` and `cmd/dali/`. That is where correctness and
 performance work belongs.
 
-`quality/` and `codegen/` form a **peripheral perimeter**: they are maintained
+`internal/quality/` and `internal/codegen/` form a **peripheral perimeter**: they are maintained
 and must keep working, but are not the focus. Treat their output as frozen —
 do not change public behaviour unless the task asks, and never let perimeter
 work reshape the core pipelines. They read `.fig` through
 `parser.Open` + `model.Build` directly (conformance test in
-`query/conformance_test.go`), so a core model change can still surface there;
+`internal/query/conformance_test.go`), so a core model change can still surface there;
 keep that path covered.
 
 ---
@@ -145,7 +145,7 @@ design.assets/
 
 ## 🌱 Lint & Analyze
 
-`quality/` parses via `parser.Open` + `model.Build` directly (CLI and MCP);
+`internal/quality/` parses via `parser.Open` + `model.Build` directly (CLI and MCP);
 it never reads the SQLite index, so results are never stale.
 
 - `quality.Lint` runs presets: `recommended` (default), `strict`, `accessibility`.
@@ -156,17 +156,22 @@ it never reads the SQLite index, so results are never stale.
 
 ## ⚙️ Component Codegen
 
-`codegen/entry.go` drives the single `codegen/html.HTMLGenerator` directly; no
+`internal/codegen/entry.go` drives the single `internal/codegen/html.HTMLGenerator` directly; no
 registry or per-framework generators exist.
 
 - `Rotation` is already in degrees; do not re-convert.
 - Text into HTML must be escaped, never interpolated raw (e.g. `-15%`).
+- The generator emits inline CSS by default; `--style tailwind` (CLI) or
+  `style: "tailwind"` (MCP `generate_figma`) restores utility classes. Both
+  modes share `PureWrapper` elision and rich-text runs (runs are always
+  inline styles).
 
 ```bash
 dali design.fig generate
 dali design.fig generate --id 1:123 --out ./components
 dali design.fig generate --name "VideoCaption" --out ./components
 dali design.fig generate --tokens css
+dali design.fig generate --style tailwind
 ```
 
 ---

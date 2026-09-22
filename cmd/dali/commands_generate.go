@@ -5,11 +5,11 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/salvadorsru/dali/assets"
-	"github.com/salvadorsru/dali/codegen"
-	"github.com/salvadorsru/dali/codegen/ir"
-	"github.com/salvadorsru/dali/mcp"
-	"github.com/salvadorsru/dali/output"
+	"github.com/salvadorsru/dali/internal/assets"
+	"github.com/salvadorsru/dali/internal/codegen"
+	"github.com/salvadorsru/dali/internal/codegen/ir"
+	"github.com/salvadorsru/dali/internal/mcp"
+	"github.com/salvadorsru/dali/internal/output"
 )
 
 func cmdGenerate(args []string) error {
@@ -18,8 +18,12 @@ func cmdGenerate(args []string) error {
 	node := fs.String("id", "", "node ID to generate (default: all)")
 	byName := fs.String("name", "", "node name substring to generate (default: all)")
 	tokensFormat := fs.String("tokens", "css", "tokens format: css, style-dict, figma")
+	styleMode := fs.String("style", "inline", "style mode: inline or tailwind")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if *styleMode != "inline" && *styleMode != "tailwind" {
+		return fmt.Errorf("unknown style mode %q: use inline or tailwind", *styleMode)
 	}
 
 	svc, err := open(figFile)
@@ -30,6 +34,7 @@ func cmdGenerate(args []string) error {
 
 	config := ir.DefaultConfig()
 	config.OutputDir = *outputDir
+	config.Style = *styleMode
 
 	// A single node to generate, resolved by id or by name
 	if *node != "" && *byName != "" {

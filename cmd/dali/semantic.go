@@ -8,10 +8,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/salvadorsru/dali/embed"
-	"github.com/salvadorsru/dali/output"
-	"github.com/salvadorsru/dali/query"
-	"github.com/salvadorsru/dali/semantic"
+	"github.com/salvadorsru/dali/internal/embed"
+	"github.com/salvadorsru/dali/internal/output"
+	"github.com/salvadorsru/dali/internal/query"
+	"github.com/salvadorsru/dali/internal/semantic"
 )
 
 // cmdIndex builds the index for a fig. By default it only builds the structural

@@ -3,8 +3,8 @@ package main
 import (
 	"errors"
 
-	"github.com/salvadorsru/dali/model"
-	"github.com/salvadorsru/dali/parser"
+	"github.com/salvadorsru/dali/internal/model"
+	"github.com/salvadorsru/dali/internal/parser"
 )
 
 func load(path string) (*model.Document, error) {

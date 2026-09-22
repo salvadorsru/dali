@@ -6,10 +6,10 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/salvadorsru/dali/model"
-	"github.com/salvadorsru/dali/output"
-	"github.com/salvadorsru/dali/parser"
-	"github.com/salvadorsru/dali/quality"
+	"github.com/salvadorsru/dali/internal/model"
+	"github.com/salvadorsru/dali/internal/output"
+	"github.com/salvadorsru/dali/internal/parser"
+	"github.com/salvadorsru/dali/internal/quality"
 )
 
 type parsed struct {

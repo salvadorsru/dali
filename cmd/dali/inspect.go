@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/salvadorsru/dali/model"
-	"github.com/salvadorsru/dali/output"
+	"github.com/salvadorsru/dali/internal/model"
+	"github.com/salvadorsru/dali/internal/output"
 )
 
 func cmdInspect(args []string) error {

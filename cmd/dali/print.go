@@ -5,9 +5,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/salvadorsru/dali/model"
-	"github.com/salvadorsru/dali/output"
-	"github.com/salvadorsru/dali/query"
+	"github.com/salvadorsru/dali/internal/model"
+	"github.com/salvadorsru/dali/internal/output"
+	"github.com/salvadorsru/dali/internal/query"
 )
 
 func printNodes(nodes []*model.Node) error {

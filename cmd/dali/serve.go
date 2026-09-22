@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/salvadorsru/dali/embed"
+	"github.com/salvadorsru/dali/internal/embed"
 )
 
 // cmdServe starts the managed embedding server in the foreground and keeps it

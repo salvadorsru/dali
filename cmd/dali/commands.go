@@ -1,6 +1,6 @@
 package main
 
-import "github.com/salvadorsru/dali/query"
+import "github.com/salvadorsru/dali/internal/query"
 
 func open(path string) (*query.Service, error) {
 	return query.Open(path)

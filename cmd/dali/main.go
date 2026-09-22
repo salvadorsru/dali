@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/salvadorsru/dali/embed"
-	"github.com/salvadorsru/dali/output"
+	"github.com/salvadorsru/dali/internal/embed"
+	"github.com/salvadorsru/dali/internal/output"
 )
 
 var (
@@ -215,9 +215,9 @@ Commands:
   index [--embeddings]       Build the structural index; --embeddings adds the vector index
                               (--force rebuilds even if up to date)
   extract-assets              Write images to <base>.assets/images
-  generate                    Generate HTML + Tailwind from components
+  generate                    Generate semantic HTML from components
                                (--out DIR, --id ID | --name NAME,
-                               --tokens css|style-dict|figma)
+                               --tokens css|style-dict|figma, --style inline|tailwind)
   mcp                         Run the MCP server over stdio
   mcp-config [--src FILE]     Write MCP config per editor (--opencode, --cursor,
                               --claude, --vscode, --cline, --roo, --windsurf;
@@ -259,6 +259,7 @@ Examples:
   dali design.fig generate --out ./src/components
   dali design.fig generate --id 1:123 --out ./components
   dali design.fig generate --name "VideoCaption" --out ./components
+  dali design.fig generate --style tailwind
   dali inspect                 # uses ./design.fig
   dali . index                 # indexes the .fig in this directory
 `)

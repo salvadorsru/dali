@@ -25,8 +25,8 @@ rebuildable local index under `.dali/`.
 - **Incremental indexing** — only missing or changed embeddings are embedded.
 - **Design linting** — accessibility and design-quality checks with presets.
 - **Geometry analysis** — layout gaps, repeated sizes, sibling overlaps.
-- **Component code generation** — HTML + Tailwind (or CSS variables) plus
-  design tokens (CSS variables, Style Dictionary JSON, Figma Tokens JSON).
+- **Component code generation** — semantic HTML with inline CSS (or Tailwind)
+  plus design tokens (CSS variables, Style Dictionary JSON, Figma Tokens JSON).
 - **Name suggestions** — near-miss hints when a search or filter matches nothing.
 - **MCP server** — expose one or many `.fig` files to MCP clients.
 - **Multi-client support** — config helpers for OpenCode, Cursor, Claude Code,
@@ -60,8 +60,8 @@ rebuildable local index under `.dali/`.
 
 The same `query.Service` powers the CLI and the MCP server.
 
-Core pipeline: `kiwi/` → `parser/` → `model/` → `index/` → `query/`, plus
-`embed/`, `semantic/`, `mcp/` and `cmd/dali/`.
+Core pipeline: `internal/kiwi/` → `internal/parser/` → `internal/model/` → `internal/index/` → `internal/query/`, plus
+`internal/embed/`, `internal/semantic/`, `internal/mcp/` and `cmd/dali/`.
 
 ## Installation
 
@@ -195,6 +195,7 @@ dali design.fig generate                          # all components into ./genera
 dali design.fig generate --id 1:123 --out ./components
 dali design.fig generate --name "VideoCaption" --out ./components
 dali design.fig generate --tokens css             # css | style-dict | figma
+dali design.fig generate --style tailwind         # inline (default) | tailwind
 ```
 
 ### Assets
@@ -240,7 +241,7 @@ analyze_figma    design-quality checks (spacing, clusters, overlaps)
 find_assets      list image assets
 find_components  list components
 find_instances   list component instances
-generate_figma   HTML + Tailwind codegen for components and tokens
+generate_figma   semantic HTML codegen (inline CSS or Tailwind) for components and tokens
 get_assets       list image assets
 get_context      structural context for a node
 get_descendants  fetch a whole subtree in one call
