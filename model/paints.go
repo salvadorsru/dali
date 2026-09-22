@@ -1,6 +1,10 @@
 package model
 
-import "strings"
+import (
+	"fmt"
+	"math"
+	"strings"
+)
 
 // Paints is a node's ordered, normalized paint stack. Fills and strokes keep
 // the authored stacking order (first element is the bottom layer, as stored in
@@ -168,4 +172,230 @@ func (d *Document) BoundVariables(n *Node) map[string]string {
 		return nil
 	}
 	return out
+}
+
+// paintsOf returns a node's direct paint list for a kind, preferring fillPaints
+// over backgroundPaints for fills.
+func paintsOf(n *Node, kind string) []any {
+	switch kind {
+	case "FILL":
+		for _, field := range []string{"fillPaints", "backgroundPaints"} {
+			if list := asSlice(n.raw[field]); len(list) > 0 {
+				return list
+			}
+		}
+	case "STROKE":
+		return asSlice(n.raw["strokePaints"])
+	}
+	return nil
+}
+
+func paintVisible(p any) bool {
+	vis, ok := asMap(p)["visible"].(bool)
+	return !ok || vis
+}
+
+// paintWellKnown limits inline fills and strokes to paints that resolve to a
+// meaningful visual value, skipping masks and other structural paint entries.
+func paintWellKnown(p any) bool {
+	t := asString(asMap(p)["type"])
+	if strings.HasPrefix(t, "GRADIENT") {
+		return true
+	}
+	switch t {
+	case "SOLID", "IMAGE":
+		return true
+	}
+	return false
+}
+
+// Fills returns the node's direct fill paints.
+func (n *Node) Fills() []any { return paintsOf(n, "FILL") }
+
+// Strokes returns the node's direct stroke paints.
+func (n *Node) Strokes() []any { return paintsOf(n, "STROKE") }
+
+// Effects returns the node's effect paints.
+func (n *Node) Effects() []any { return asSlice(n.raw["effects"]) }
+
+// StrokeHex returns the first visible solid stroke color, if any.
+func (n *Node) StrokeHex() (string, bool) {
+	for _, p := range paintsOf(n, "STROKE") {
+		pm := asMap(p)
+		if pm == nil || !paintVisible(p) || asString(pm["type"]) != "SOLID" {
+			continue
+		}
+		if c := colorOf(pm); c != "" {
+			return c, true
+		}
+	}
+	return "", false
+}
+
+// FillHex returns the first visible solid fill color, if any.
+func (n *Node) FillHex() (string, bool) {
+	for _, p := range n.Fills() {
+		pm := asMap(p)
+		if pm == nil || !paintVisible(p) || asString(pm["type"]) != "SOLID" {
+			continue
+		}
+		if c := colorOf(pm); c != "" {
+			return c, true
+		}
+	}
+	return "", false
+}
+
+func textSummary(raw map[string]any) string {
+	var parts []string
+	if fn := asMap(raw["fontName"]); fn != nil {
+		family := asString(fn["family"])
+		style := asString(fn["style"])
+		switch {
+		case family == "":
+		case style == "":
+			parts = append(parts, family)
+		default:
+			parts = append(parts, family+" "+style)
+		}
+	}
+	if size := asFloat(raw["fontSize"]); size > 0 {
+		parts = append(parts, fmt.Sprintf("%gpx", size))
+	}
+	if s := paintsSummary(raw["fillPaints"]); s != "" {
+		parts = append(parts, s)
+	}
+	if d := asString(raw["textDecoration"]); d != "" {
+		parts = append(parts, strings.ToLower(d))
+	}
+	return strings.Join(parts, " · ")
+}
+
+func paintsSummary(v any) string {
+	list := asSlice(v)
+	var parts []string
+	for _, p := range list {
+		pm := asMap(p)
+		if pm == nil {
+			continue
+		}
+		if visible, ok := pm["visible"].(bool); ok && !visible {
+			continue
+		}
+		parts = append(parts, paintSummary(pm))
+	}
+	if len(parts) == 0 {
+		for _, p := range list {
+			if pm := asMap(p); pm != nil {
+				parts = append(parts, paintSummary(pm))
+			}
+		}
+	}
+	return strings.Join(parts, "; ")
+}
+
+func paintSummary(pm map[string]any) string {
+	ptype := asString(pm["type"])
+	switch {
+	case ptype == "SOLID" && colorOf(pm) != "":
+		return colorOf(pm)
+	case strings.HasPrefix(ptype, "GRADIENT"):
+		var colors []string
+		for _, st := range asSlice(pm["stops"]) {
+			if c := colorOf(asMap(st)); c != "" {
+				colors = append(colors, c)
+			}
+		}
+		if len(colors) == 0 {
+			return "gradient"
+		}
+		return fmt.Sprintf("gradient(%s)", strings.Join(colors, ", "))
+	case ptype == "IMAGE":
+		if img := asMap(pm["image"]); img != nil {
+			if name := asString(img["name"]); name != "" {
+				return "image " + name
+			}
+		}
+		return "image"
+	default:
+		return humanTitle(ptype)
+	}
+}
+
+// colorOf returns the hex color of a paint or gradient stop, preferring the
+// authored sRGB color when present.
+func colorOf(m map[string]any) string {
+	if ac := asMap(m["authoredColor"]); ac != nil {
+		r := clamp255(asFloat(ac["c0"]))
+		g := clamp255(asFloat(ac["c1"]))
+		b := clamp255(asFloat(ac["c2"]))
+		a := asFloat(ac["c3"])
+		return hexColor(r, g, b, a)
+	}
+	if c := asMap(m["color"]); c != nil {
+		r := clamp255(asFloat(c["r"]))
+		g := clamp255(asFloat(c["g"]))
+		b := clamp255(asFloat(c["b"]))
+		a := asFloat(c["a"])
+		return hexColor(r, g, b, a)
+	}
+	return ""
+}
+
+func hexColor(r, g, b int, a float64) string {
+	if a < 0.999 {
+		return fmt.Sprintf("#%02X%02X%02X%02X", r, g, b, clamp255(a))
+	}
+	return fmt.Sprintf("#%02X%02X%02X", r, g, b)
+}
+
+func clamp255(v float64) int {
+	v = math.Round(v * 255)
+	if v < 0 {
+		return 0
+	}
+	if v > 255 {
+		return 255
+	}
+	return int(v)
+}
+
+func effectsSummary(v any) string {
+	var parts []string
+	for _, e := range asSlice(v) {
+		if em := asMap(e); em != nil {
+			if t := asString(em["type"]); t != "" {
+				parts = append(parts, humanTitle(t))
+			}
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
+func gridsSummary(v any) string {
+	n := len(asSlice(v))
+	if n == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d grid%s", n, plural(n))
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
+}
+
+func humanTitle(s string) string {
+	if s == "" {
+		return ""
+	}
+	words := strings.Split(strings.ToLower(s), "_")
+	for i, w := range words {
+		if w != "" {
+			words[i] = strings.ToUpper(w[:1]) + w[1:]
+		}
+	}
+	return strings.Join(words, " ")
 }
