@@ -26,9 +26,9 @@ func FromEnv() Embedder {
 		return nil
 	case "ollama":
 		return ollamaFromEnv()
-	case "llama", "local":
+	case "llama":
 		return managedFromEnv()
-	case "remote", "openai":
+	case "remote":
 		return NewOpenAI(os.Getenv("DALI_EMBED_URL"), env("DALI_EMBED_MODEL", defaultModel))
 	}
 	// auto
