@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/salvadorsru/dali/internal/embed"
 	"github.com/salvadorsru/dali/internal/output"
 )
 
@@ -174,7 +173,7 @@ func cmdMCPConfig(args []string) error {
 		fig = figFile
 	}
 	if fig == "" {
-		found, err := detectFig(embed.FigDir())
+		found, err := detectFig(figDir())
 		if err != nil {
 			return errors.New("no design file: pass --src <file.fig>")
 		}

@@ -1,7 +1,6 @@
 package embed
 
 import (
-	"os"
 	"runtime"
 )
 
@@ -20,19 +19,6 @@ func clamp(v, lo, hi int) int {
 		return hi
 	}
 	return v
-}
-
-// FigDir returns the directory where .fig/.deck files are located.
-// Priority: DALI_FIG_DIR env var > current working directory.
-func FigDir() string {
-	if v := os.Getenv("DALI_FIG_DIR"); v != "" {
-		return v
-	}
-	wd, err := os.Getwd()
-	if err != nil {
-		return "."
-	}
-	return wd
 }
 
 // Parallel is the number of concurrent embedding requests and llama-server slots.

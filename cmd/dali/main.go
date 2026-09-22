@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/salvadorsru/dali/internal/embed"
 	"github.com/salvadorsru/dali/internal/output"
 )
 
@@ -91,7 +90,7 @@ func main() {
 	}
 	if !figless[name] {
 		if figFile == "" {
-			figFile = embed.FigDir()
+			figFile = figDir()
 		}
 		info, err := os.Stat(figFile)
 		if err != nil {
@@ -126,7 +125,7 @@ func fail(err error) {
 
 // hint greets a new user with the fig it found in the current directory.
 func hint() {
-	fmt.Fprintf(os.Stderr, "%s %s\n", output.Success("Found"), output.Bold(embed.FigDir()))
+	fmt.Fprintf(os.Stderr, "%s %s\n", output.Success("Found"), output.Bold(figDir()))
 	fmt.Fprintf(os.Stderr, "  %s\n", output.Dim("dali inspect"))
 	fmt.Fprintf(os.Stderr, "  %s\n", output.Dim(`dali search "checkout"`))
 	fmt.Fprintf(os.Stderr, "  %s\n", output.Dim(`dali semantic-search "payment screen"`))
@@ -137,9 +136,21 @@ func isHelp(arg string) bool {
 	return arg == "help" || arg == "-h" || arg == "--help"
 }
 
+// figDir is where .fig/.deck files live: DALI_FIG_DIR or the working directory.
+func figDir() string {
+	if v := os.Getenv("DALI_FIG_DIR"); v != "" {
+		return v
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		return "."
+	}
+	return wd
+}
+
 func detectFig(dir string) (string, error) {
 	if dir == "" {
-		dir = embed.FigDir()
+		dir = figDir()
 	}
 	var matches []string
 	for _, pattern := range []string{"*.fig", "*.deck"} {
