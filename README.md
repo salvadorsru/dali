@@ -11,25 +11,36 @@ rebuildable local index under `.dali/`.
 
 ## Features
 
+**Search**
+
+- **Structural** — query the document tree and node relationships
+  (`query_figma` DSL, XPath subset via a leading `/`).
+- **Full-text** — SQLite FTS5 over node names and text content.
+- **Semantic** — conceptual vector search via `sqlite-vec`, with local
+  embeddings (`llama.cpp` + EmbeddingGemma), Ollama, or a remote provider.
+  Only missing or changed embeddings are rebuilt.
+- **Name suggestions** — near-miss hints when a search or filter matches nothing.
+
+**Index**
+
 - **Local `.fig` parsing** — decode Figma's Kiwi binary format directly, no Figma
   running, so any design file is searchable offline.
 - **SQLite index** — persistent, rebuildable index stored under `.dali/`.
-- **Structural search** — query the document tree and node relationships
-  (`query_figma` DSL, XPath subset via a leading `/`).
-- **Full-text search** — SQLite FTS5 over node names and text content.
-- **Semantic search** — conceptual vector search via `sqlite-vec`, with
-  incremental local embeddings (`llama.cpp`, Ollama or remote).
-- **Auto-rebuild index** — the index regenerates automatically whenever the
-  source `.fig` changes.
+- **Asset extraction** — images written next to the original `.fig`.
+
+**Analysis**
+
 - **Design linting** — accessibility and design-quality checks with presets.
 - **Geometry analysis** — layout gaps, repeated sizes, sibling overlaps.
+
+**Codegen**
+
 - **Component code generation** — semantic HTML with inline CSS (or Tailwind)
   plus design tokens (CSS variables, Style Dictionary JSON, Figma Tokens JSON).
-- **Impact analysis** — where a component is placed (`usages`/`dependents`).
-- **Name suggestions** — near-miss hints when a search or filter matches nothing.
-- **MCP server** — expose one or many `.fig` files, with config helpers for
-  OpenCode, Cursor, Claude Code, VS Code, Cline, Roo Code and Windsurf.
-- **Asset extraction** — images written next to the original `.fig`.
+
+**MCP**
+
+- **MCP server** — expose one or many `.fig` files to MCP clients.
 
 ## Architecture
 
@@ -210,7 +221,8 @@ dali design.fig extract-assets   # write them to design.assets/images/
 ## MCP
 
 Mount one or many `.fig` files and let MCP clients query them through Dalí's
-tools. Generate per-client configs with:
+tools. Config helpers cover OpenCode, Cursor, Claude Code, VS Code, Cline,
+Roo Code, and Windsurf. Generate per-client configs with:
 
 ```bash
 dali mcp-config --opencode        # also: cursor, claude, vscode, cline, roo, windsurf, all
