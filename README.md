@@ -1,5 +1,9 @@
 # Dalí
 
+<p align="center">
+  <img src="images/banner.png" alt="Dalí — search and indexing engine for Figma `.fig` files" width="820">
+</p>
+
 **Local search and indexing engine for Figma `.fig` files.**
 
 Dalí parses Figma `.fig` files on disk, builds a rebuildable local SQLite index
