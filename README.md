@@ -6,12 +6,35 @@
 
 **Local search and indexing engine for Figma `.fig` files.**
 
+<p align="center">
+  <img src="https://img.shields.io/github/v/release/salvadorsru/dali" alt="Release">
+  <img src="https://img.shields.io/github/license/salvadorsru/dali" alt="License">
+</p>
+
 Dalí parses Figma `.fig` files on disk, builds a rebuildable local SQLite index
 (full-text, structural and vector), and exposes search through a CLI and an MCP
 server. Figma does not need to be open, and designs stay local.
 
 The `.fig` file remains the source of truth. Everything Dalí generates is a
 rebuildable local index under `.dali/`.
+
+## Why Dalí
+
+Unlike other `.fig` tools that dump a tree or relay the Figma REST API, Dalí is
+the only offline engine that combines full-text, structural and semantic search
+with analysis and code generation in a single binary.
+
+| | **Dalí** | FigReader MCP | fig-mcp | figmatojson | figmingo MCP | OpenPencil |
+| --- | --- | --- | --- | --- | --- | --- |
+| Offline `.fig` parsing | ✅ | ✅ | ✅ | ✅ | ❌ (REST) | ✅ |
+| Persistent local index | ✅ SQLite | ❌ | ❌ | ❌ | ✅ | ❌ |
+| Full-text search | ✅ FTS5 | partial | ❌ | ❌ | ✅ | ❌ |
+| Semantic/vector search | ✅ hybrid | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Structural DSL + XPath | ✅ | ❌ | ❌ | ❌ | ❌ | find/tree |
+| Lint, geometry, diff | ✅ | ❌ | ❌ | ❌ | ❌ | lint |
+| Codegen + tokens | ✅ | ❌ | render | JSON/repack | HTML | ❌ |
+| MCP server | ✅ ~22 tools | ✅ | ✅ | ❌ | ✅ | ✅ 90 tools |
+| CLI | ✅ | ❌ | partial | ✅ | ❌ | ✅ |
 
 ## Features
 
