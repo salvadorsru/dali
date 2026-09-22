@@ -17,22 +17,19 @@ rebuildable local index under `.dali/`.
 - **Structural search** — query the document tree and node relationships
   (`query_figma` DSL, XPath subset via a leading `/`).
 - **Full-text search** — SQLite FTS5 over node names and text content.
-- **Semantic search** — conceptual vector search via `sqlite-vec`.
-- **Local embeddings** — optional automatic embeddings with `llama.cpp` +
-  EmbeddingGemma (`mode=auto`), kept running for reuse.
-- **Ollama & remote embeddings** — use an existing Ollama server or a remote
-  provider instead.
-- **Incremental indexing** — only missing or changed embeddings are embedded.
+- **Semantic search** — conceptual vector search via `sqlite-vec`, with
+  incremental local embeddings (`llama.cpp`, Ollama or remote).
+- **Auto-rebuild index** — the index regenerates automatically whenever the
+  source `.fig` changes.
 - **Design linting** — accessibility and design-quality checks with presets.
 - **Geometry analysis** — layout gaps, repeated sizes, sibling overlaps.
 - **Component code generation** — semantic HTML with inline CSS (or Tailwind)
   plus design tokens (CSS variables, Style Dictionary JSON, Figma Tokens JSON).
+- **Impact analysis** — where a component is placed (`usages`/`dependents`).
 - **Name suggestions** — near-miss hints when a search or filter matches nothing.
-- **MCP server** — expose one or many `.fig` files to MCP clients.
-- **Multi-client support** — config helpers for OpenCode, Cursor, Claude Code,
-  VS Code, Cline, Roo Code, Windsurf.
+- **MCP server** — expose one or many `.fig` files, with config helpers for
+  OpenCode, Cursor, Claude Code, VS Code, Cline, Roo Code and Windsurf.
 - **Asset extraction** — images written next to the original `.fig`.
-- **CGo-free** — SQLite and `sqlite-vec` via `modernc.org/sqlite`.
 
 ## Architecture
 
