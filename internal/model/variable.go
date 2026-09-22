@@ -106,7 +106,7 @@ func variableValueString(v any) string {
 		return strconv.FormatBool(b)
 	}
 	if cv := asMap(vm["colorValue"]); cv != nil {
-		return hexColor(clamp255(asFloat(cv["r"])), clamp255(asFloat(cv["g"])), clamp255(asFloat(cv["b"])), asFloat(cv["a"]))
+		return HexColor(Clamp255(asFloat(cv["r"])), Clamp255(asFloat(cv["g"])), Clamp255(asFloat(cv["b"])), asFloat(cv["a"]))
 	}
 	if va := asMap(vm["varValue"]); va != nil {
 		if g := guidValue(va["guid"]); g != "" {

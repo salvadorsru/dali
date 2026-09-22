@@ -1,7 +1,6 @@
 package util
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/salvadorsru/dali/internal/codegen/ir"
@@ -43,7 +42,7 @@ func TranslateStyles(node *model.Node) ir.StyleSpec {
 			continue
 		}
 		if asString(pm["type"]) == "SOLID" {
-			if c := colorOf(pm); c != "" {
+			if c := model.ColorOf(pm); c != "" {
 				spec.Background = ir.FillSpec{Type: "SOLID", Color: c, Visible: true}
 				break
 			}
@@ -65,7 +64,7 @@ func translateFill(p any) *ir.FillSpec {
 	switch ptype {
 	case "SOLID":
 		fill.Type = "SOLID"
-		if c := colorOf(pm); c != "" {
+		if c := model.ColorOf(pm); c != "" {
 			fill.Color = c
 		}
 		if a := asFloat(pm["opacity"]); a > 0 {
@@ -114,7 +113,7 @@ func translateStroke(p any) *ir.StrokeSpec {
 	switch ptype {
 	case "SOLID":
 		stroke.Type = "SOLID"
-		if c := colorOf(pm); c != "" {
+		if c := model.ColorOf(pm); c != "" {
 			stroke.Color = c
 		}
 	case "GRADIENT_LINEAR", "GRADIENT_RADIAL", "GRADIENT_ANGULAR":
@@ -152,7 +151,7 @@ func translateGradient(pm map[string]any) *ir.GradientSpec {
 			Position: asFloat(sm["position"]),
 			Opacity:  asFloat(sm["opacity"]),
 		}
-		if c := colorOf(sm); c != "" {
+		if c := model.ColorOf(sm); c != "" {
 			stop.Color = c
 		}
 		g.Stops = append(g.Stops, stop)
@@ -190,7 +189,7 @@ func translateEffects(node *model.Node) []ir.EffectSpec {
 		}
 		switch t {
 		case "DROP_SHADOW", "INNER_SHADOW":
-			if c := colorOf(em); c != "" {
+			if c := model.ColorOf(em); c != "" {
 				effect.Color = c
 			}
 			effect.Offset = ir.Point{X: asFloat(em["offsetX"]), Y: asFloat(em["offsetY"])}
@@ -254,40 +253,4 @@ func asFloat(v any) float64 {
 func paintVisible(p any) bool {
 	vis, ok := asMap(p)["visible"].(bool)
 	return !ok || vis
-}
-
-func colorOf(m map[string]any) string {
-	if ac := asMap(m["authoredColor"]); ac != nil {
-		r := clamp255(asFloat(ac["c0"]))
-		g := clamp255(asFloat(ac["c1"]))
-		b := clamp255(asFloat(ac["c2"]))
-		a := asFloat(ac["c3"])
-		return hexColor(r, g, b, a)
-	}
-	if c := asMap(m["color"]); c != nil {
-		r := clamp255(asFloat(c["r"]))
-		g := clamp255(asFloat(c["g"]))
-		b := clamp255(asFloat(c["b"]))
-		a := asFloat(c["a"])
-		return hexColor(r, g, b, a)
-	}
-	return ""
-}
-
-func clamp255(v float64) int {
-	v = v * 255
-	if v < 0 {
-		return 0
-	}
-	if v > 255 {
-		return 255
-	}
-	return int(v + 0.5)
-}
-
-func hexColor(r, g, b int, a float64) string {
-	if a < 0.999 {
-		return fmt.Sprintf("#%02X%02X%02X%02X", r, g, b, clamp255(a))
-	}
-	return fmt.Sprintf("#%02X%02X%02X", r, g, b)
 }

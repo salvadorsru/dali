@@ -83,13 +83,13 @@ func normalizePaint(v any) Paint {
 	}
 	switch {
 	case p.Type == "SOLID":
-		p.Color = colorOf(pm)
+		p.Color = ColorOf(pm)
 	case strings.HasPrefix(p.Type, "GRADIENT"):
 		for _, st := range asSlice(pm["stops"]) {
 			sm := asMap(st)
 			p.Stops = append(p.Stops, PaintStop{
 				Position: asFloat(sm["position"]),
-				Color:    colorOf(sm),
+				Color:    ColorOf(sm),
 			})
 		}
 		if sp := asMap(pm["gradientStartPoint"]); sp != nil {
@@ -113,7 +113,7 @@ func normalizeEffect(v any) Effect {
 	e := Effect{
 		Type:      asString(em["type"]),
 		Visible:   paintVisible(v),
-		Color:     colorOf(em),
+		Color:     ColorOf(em),
 		Radius:    asFloat(em["radius"]),
 		Spread:    asFloat(em["spread"]),
 		BlendMode: asString(em["blendMode"]),
@@ -225,7 +225,7 @@ func (n *Node) StrokeHex() (string, bool) {
 		if pm == nil || !paintVisible(p) || asString(pm["type"]) != "SOLID" {
 			continue
 		}
-		if c := colorOf(pm); c != "" {
+		if c := ColorOf(pm); c != "" {
 			return c, true
 		}
 	}
@@ -239,7 +239,7 @@ func (n *Node) FillHex() (string, bool) {
 		if pm == nil || !paintVisible(p) || asString(pm["type"]) != "SOLID" {
 			continue
 		}
-		if c := colorOf(pm); c != "" {
+		if c := ColorOf(pm); c != "" {
 			return c, true
 		}
 	}
@@ -297,12 +297,12 @@ func paintsSummary(v any) string {
 func paintSummary(pm map[string]any) string {
 	ptype := asString(pm["type"])
 	switch {
-	case ptype == "SOLID" && colorOf(pm) != "":
-		return colorOf(pm)
+	case ptype == "SOLID" && ColorOf(pm) != "":
+		return ColorOf(pm)
 	case strings.HasPrefix(ptype, "GRADIENT"):
 		var colors []string
 		for _, st := range asSlice(pm["stops"]) {
-			if c := colorOf(asMap(st)); c != "" {
+			if c := ColorOf(asMap(st)); c != "" {
 				colors = append(colors, c)
 			}
 		}
@@ -322,34 +322,34 @@ func paintSummary(pm map[string]any) string {
 	}
 }
 
-// colorOf returns the hex color of a paint or gradient stop, preferring the
+// ColorOf returns the hex color of a paint or gradient stop, preferring the
 // authored sRGB color when present.
-func colorOf(m map[string]any) string {
+func ColorOf(m map[string]any) string {
 	if ac := asMap(m["authoredColor"]); ac != nil {
-		r := clamp255(asFloat(ac["c0"]))
-		g := clamp255(asFloat(ac["c1"]))
-		b := clamp255(asFloat(ac["c2"]))
+		r := Clamp255(asFloat(ac["c0"]))
+		g := Clamp255(asFloat(ac["c1"]))
+		b := Clamp255(asFloat(ac["c2"]))
 		a := asFloat(ac["c3"])
-		return hexColor(r, g, b, a)
+		return HexColor(r, g, b, a)
 	}
 	if c := asMap(m["color"]); c != nil {
-		r := clamp255(asFloat(c["r"]))
-		g := clamp255(asFloat(c["g"]))
-		b := clamp255(asFloat(c["b"]))
+		r := Clamp255(asFloat(c["r"]))
+		g := Clamp255(asFloat(c["g"]))
+		b := Clamp255(asFloat(c["b"]))
 		a := asFloat(c["a"])
-		return hexColor(r, g, b, a)
+		return HexColor(r, g, b, a)
 	}
 	return ""
 }
 
-func hexColor(r, g, b int, a float64) string {
+func HexColor(r, g, b int, a float64) string {
 	if a < 0.999 {
-		return fmt.Sprintf("#%02X%02X%02X%02X", r, g, b, clamp255(a))
+		return fmt.Sprintf("#%02X%02X%02X%02X", r, g, b, Clamp255(a))
 	}
 	return fmt.Sprintf("#%02X%02X%02X", r, g, b)
 }
 
-func clamp255(v float64) int {
+func Clamp255(v float64) int {
 	v = math.Round(v * 255)
 	if v < 0 {
 		return 0

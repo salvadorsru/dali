@@ -218,7 +218,7 @@ func applyRunStyle(r *TextRun, styleID int64, overrides []any, m map[string]any)
 	}
 	r.Decoration = asString(base["textDecoration"])
 	if paints := asSlice(base["fillPaints"]); len(paints) > 0 {
-		if c := colorOf(asMap(paints[0])); c != "" {
+		if c := ColorOf(asMap(paints[0])); c != "" {
 			r.Color = c
 		}
 	}
