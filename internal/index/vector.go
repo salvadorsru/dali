@@ -41,27 +41,6 @@ func (db *DB) ExistingHashes() (map[string]string, error) {
 	return out, rows.Err()
 }
 
-func (db *DB) SaveEmbeddings(entries []Embedding) error {
-	tx, err := db.sql.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	stmt, err := tx.Prepare(`INSERT OR REPLACE INTO embeddings
-		(node_id, model, dimensions, content_hash, generator_version, updated_at)
-		VALUES (?, ?, ?, ?, ?, unixepoch())`)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	for _, e := range entries {
-		if _, err := stmt.Exec(e.NodeID, e.Model, e.Dimensions, e.ContentHash, e.GeneratorVersion); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
-}
-
 // WriteEmbeddings stores vectors and their metadata in a single transaction.
 func (db *DB) WriteEmbeddings(vectors []Vector, entries []Embedding) error {
 	tx, err := db.sql.Begin()
