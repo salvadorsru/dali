@@ -42,25 +42,9 @@ func (o *Ollama) embedBatch(ctx context.Context, texts []string) ([][]float32, e
 	if err != nil {
 		return nil, err
 	}
-	var lastErr error
-	for attempt := 0; attempt < 3; attempt++ {
-		if attempt > 0 {
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(time.Duration(attempt) * time.Second):
-			}
-		}
-		vectors, retry, err := o.post(ctx, body)
-		if err == nil {
-			return vectors, nil
-		}
-		lastErr = err
-		if !retry {
-			break
-		}
-	}
-	return nil, fmt.Errorf("embed %s: %w", o.Name, lastErr)
+	return retry(ctx, o.Name, func() ([][]float32, bool, error) {
+		return o.post(ctx, body)
+	})
 }
 
 func (o *Ollama) post(ctx context.Context, body []byte) ([][]float32, bool, error) {

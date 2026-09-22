@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
-	"time"
 )
 
 // OpenAI talks to any OpenAI-compatible /v1/embeddings endpoint (llama-server,
@@ -57,25 +56,9 @@ func (o *OpenAI) embedBatch(ctx context.Context, texts []string) ([][]float32, e
 	if err != nil {
 		return nil, err
 	}
-	var lastErr error
-	for attempt := 0; attempt < 3; attempt++ {
-		if attempt > 0 {
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(time.Duration(attempt) * time.Second):
-			}
-		}
-		vectors, retry, err := o.post(ctx, body, len(texts))
-		if err == nil {
-			return vectors, nil
-		}
-		lastErr = err
-		if !retry {
-			break
-		}
-	}
-	return nil, fmt.Errorf("embed %s: %w", o.Name, lastErr)
+	return retry(ctx, o.Name, func() ([][]float32, bool, error) {
+		return o.post(ctx, body, len(texts))
+	})
 }
 
 func (o *OpenAI) post(ctx context.Context, body []byte, want int) ([][]float32, bool, error) {

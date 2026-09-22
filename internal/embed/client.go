@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 // batchVectors chunks texts by the batch size and concatenates the provider's
@@ -24,6 +25,30 @@ func batchVectors(batch int, texts []string, embed func([]string) ([][]float32, 
 		out = append(out, vectors...)
 	}
 	return out, nil
+}
+
+// retry runs fn up to three times, backing off 1s then 2s, and only retries
+// transient failures. Non-retryable errors stop immediately.
+func retry(ctx context.Context, name string, fn func() ([][]float32, bool, error)) ([][]float32, error) {
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(time.Duration(attempt) * time.Second):
+			}
+		}
+		vectors, retryable, err := fn()
+		if err == nil {
+			return vectors, nil
+		}
+		lastErr = err
+		if !retryable {
+			break
+		}
+	}
+	return nil, fmt.Errorf("embed %s: %w", name, lastErr)
 }
 
 // postJSON posts a JSON body and returns the raw response. Transient errors
