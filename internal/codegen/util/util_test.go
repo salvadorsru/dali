@@ -151,6 +151,23 @@ func TestStyleToInlineFill(t *testing.T) {
 	}
 }
 
+func TestStyleToInlineGradient(t *testing.T) {
+	styles := StyleToInline(ir.StyleSpec{Fills: []ir.FillSpec{{
+		Type:    "GRADIENT_LINEAR",
+		Visible: true,
+		Gradient: &ir.GradientSpec{
+			Angle: 90,
+			Stops: []ir.GradientStop{
+				{Position: 0, Color: "#FFF"},
+				{Position: 1, Color: "#000"},
+			},
+		},
+	}}})
+	if !strings.Contains(styles, "background-image:linear-gradient(90deg, #FFF 0%, #000 100%)") {
+		t.Errorf("styles = %q, want linear-gradient output", styles)
+	}
+}
+
 func TestStyleToInlineShadow(t *testing.T) {
 	styles := StyleToInline(ir.StyleSpec{Effects: []ir.EffectSpec{{Type: "DROP_SHADOW", Color: "#000", Offset: ir.Point{X: 1, Y: 2}, Radius: 3, Spread: 4}}})
 	if !strings.Contains(styles, "box-shadow:1px 2px 3px 4px #000") {

@@ -79,10 +79,22 @@ func StyleToInline(spec ir.StyleSpec) string {
 	var props []string
 
 	for _, fill := range spec.Fills {
-		if fill.Type == "SOLID" && fill.Visible && fill.Color != "" {
-			props = append(props, fmt.Sprintf("background-color:%s", fill.Color))
-			break
+		if !fill.Visible {
+			continue
 		}
+		switch fill.Type {
+		case "SOLID":
+			if fill.Color != "" {
+				props = append(props, fmt.Sprintf("background-color:%s", fill.Color))
+			}
+		case "GRADIENT_LINEAR", "GRADIENT_RADIAL", "GRADIENT_ANGULAR":
+			if fill.Gradient != nil {
+				if grad := gradientToCSS(fill.Gradient, fill.Type); grad != "" {
+					props = append(props, fmt.Sprintf("background-image:%s", grad))
+				}
+			}
+		}
+		break
 	}
 
 	for _, stroke := range spec.Strokes {
@@ -117,4 +129,32 @@ func StyleToInline(spec ir.StyleSpec) string {
 	}
 
 	return strings.Join(props, "; ")
+}
+
+func gradientToCSS(g *ir.GradientSpec, fillType string) string {
+	var stops []string
+	for _, stop := range g.Stops {
+		color := stop.Color
+		if stop.Opacity > 0 && stop.Opacity < 1 {
+			color = fmt.Sprintf("%s / %g", color, stop.Opacity)
+		}
+		stops = append(stops, fmt.Sprintf("%s %g%%", color, stop.Position*100))
+	}
+	switch fillType {
+	case "GRADIENT_LINEAR":
+		angle := g.Angle
+		if angle == 0 {
+			angle = 180
+		}
+		return fmt.Sprintf("linear-gradient(%gdeg, %s)", angle, strings.Join(stops, ", "))
+	case "GRADIENT_RADIAL":
+		shape := "circle"
+		if g.InnerRadius > 0 {
+			shape = "ellipse"
+		}
+		return fmt.Sprintf("radial-gradient(%s at %g%% %g%%, %s)", shape, g.StartPoint.X*100, g.StartPoint.Y*100, strings.Join(stops, ", "))
+	case "GRADIENT_ANGULAR":
+		return fmt.Sprintf("conic-gradient(from %gdeg at %g%% %g%%, %s)", g.Angle, g.StartPoint.X*100, g.StartPoint.Y*100, strings.Join(stops, ", "))
+	}
+	return ""
 }
