@@ -3,7 +3,6 @@ package output
 import (
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestVisibleLen(t *testing.T) {
@@ -53,14 +52,5 @@ func TestCommas(t *testing.T) {
 	}
 	if got := commas(999); got != "999" {
 		t.Fatalf("commas = %q", got)
-	}
-}
-
-func TestHumanDuration(t *testing.T) {
-	if got := humanDuration(12 * time.Second); got != "12s" {
-		t.Fatalf("humanDuration = %q", got)
-	}
-	if got := humanDuration(95 * time.Second); got != "1m35s" {
-		t.Fatalf("humanDuration = %q", got)
 	}
 }

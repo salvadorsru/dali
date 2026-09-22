@@ -12,135 +12,47 @@ import (
 )
 
 type configTarget struct {
-	name    string
-	path    string
-	key     string
-	global  bool
-	payload func(exe, fig string, env map[string]string) map[string]any
+	name   string
+	path   string
+	key    string
+	global bool
+	// stdio emits command/args; cline/roo add disabled + alwaysAllow; opencode
+	// uses the local-dynamic command array with environment/timeout.
+	stdio bool
+	allow bool
+	local bool
 }
 
 var configTargets = map[string]configTarget{
-	"opencode": {
-		name: "OpenCode",
-		path: "opencode.json",
-		key:  "mcp",
-		payload: func(exe, fig string, env map[string]string) map[string]any {
-			return map[string]any{
-				"mcp": map[string]any{
-					"dali": map[string]any{
-						"type":        "local",
-						"command":     []string{exe, fig, "mcp"},
-						"environment": env,
-						"enabled":     true,
-						"timeout":     120000,
-					},
-				},
-			}
-		},
-	},
-	"cursor": {
-		name: "Cursor",
-		path: filepath.Join(".cursor", "mcp.json"),
-		key:  "mcpServers",
-		payload: func(exe, fig string, env map[string]string) map[string]any {
-			return map[string]any{
-				"mcpServers": map[string]any{
-					"dali": map[string]any{
-						"command": exe,
-						"args":    []string{fig, "mcp"},
-						"env":     env,
-					},
-				},
-			}
-		},
-	},
-	"claude": {
-		name: "Claude Code",
-		path: ".mcp.json",
-		key:  "mcpServers",
-		payload: func(exe, fig string, env map[string]string) map[string]any {
-			return map[string]any{
-				"mcpServers": map[string]any{
-					"dali": map[string]any{
-						"type":    "stdio",
-						"command": exe,
-						"args":    []string{fig, "mcp"},
-						"env":     env,
-					},
-				},
-			}
-		},
-	},
-	"vscode": {
-		name: "VS Code",
-		path: filepath.Join(".vscode", "mcp.json"),
-		key:  "servers",
-		payload: func(exe, fig string, env map[string]string) map[string]any {
-			return map[string]any{
-				"servers": map[string]any{
-					"dali": map[string]any{
-						"type":    "stdio",
-						"command": exe,
-						"args":    []string{fig, "mcp"},
-						"env":     env,
-					},
-				},
-			}
-		},
-	},
-	"cline": {
-		name: "Cline",
-		path: filepath.Join(".cline", "mcp.json"),
-		key:  "mcpServers",
-		payload: func(exe, fig string, env map[string]string) map[string]any {
-			return map[string]any{
-				"mcpServers": map[string]any{
-					"dali": map[string]any{
-						"command":     exe,
-						"args":        []string{fig, "mcp"},
-						"env":         env,
-						"disabled":    false,
-						"alwaysAllow": []string{},
-					},
-				},
-			}
-		},
-	},
-	"roo": {
-		name: "Roo Code",
-		path: filepath.Join(".roo", "mcp.json"),
-		key:  "mcpServers",
-		payload: func(exe, fig string, env map[string]string) map[string]any {
-			return map[string]any{
-				"mcpServers": map[string]any{
-					"dali": map[string]any{
-						"command":     exe,
-						"args":        []string{fig, "mcp"},
-						"env":         env,
-						"disabled":    false,
-						"alwaysAllow": []string{},
-					},
-				},
-			}
-		},
-	},
-	"windsurf": {
-		name:   "Windsurf",
-		path:   "mcp_config.json",
-		key:    "mcpServers",
-		global: true,
-		payload: func(exe, fig string, env map[string]string) map[string]any {
-			return map[string]any{
-				"mcpServers": map[string]any{
-					"dali": map[string]any{
-						"command": exe,
-						"args":    []string{fig, "mcp"},
-						"env":     env,
-					},
-				},
-			}
-		},
-	},
+	"opencode": {name: "OpenCode", path: "opencode.json", key: "mcp", local: true},
+	"cursor":   {name: "Cursor", path: filepath.Join(".cursor", "mcp.json"), key: "mcpServers"},
+	"claude":   {name: "Claude Code", path: ".mcp.json", key: "mcpServers", stdio: true},
+	"vscode":   {name: "VS Code", path: filepath.Join(".vscode", "mcp.json"), key: "servers", stdio: true},
+	"cline":    {name: "Cline", path: filepath.Join(".cline", "mcp.json"), key: "mcpServers", allow: true},
+	"roo":      {name: "Roo Code", path: filepath.Join(".roo", "mcp.json"), key: "mcpServers", allow: true},
+	"windsurf": {name: "Windsurf", path: "mcp_config.json", key: "mcpServers", global: true},
+}
+
+// payload builds the config document for a target.
+func (t configTarget) payload(exe, fig string, env map[string]string) map[string]any {
+	var server map[string]any
+	switch {
+	case t.local:
+		server = map[string]any{
+			"type":        "local",
+			"command":     []string{exe, fig, "mcp"},
+			"environment": env,
+			"enabled":     true,
+			"timeout":     120000,
+		}
+	case t.allow:
+		server = map[string]any{"command": exe, "args": []string{fig, "mcp"}, "env": env, "disabled": false, "alwaysAllow": []string{}}
+	case t.stdio:
+		server = map[string]any{"type": "stdio", "command": exe, "args": []string{fig, "mcp"}, "env": env}
+	default:
+		server = map[string]any{"command": exe, "args": []string{fig, "mcp"}, "env": env}
+	}
+	return map[string]any{t.key: map[string]any{"dali": server}}
 }
 
 // order lists the editor targets in a deterministic output order.

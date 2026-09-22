@@ -111,7 +111,7 @@ func (p *Progress) line() string {
 	}
 	eta := ""
 	if rate > 0 && p.total > p.done {
-		eta = "  " + humanDuration(time.Duration(float64(p.total-p.done)/float64(rate)*float64(time.Second)))
+		eta = "  " + time.Duration(float64(p.total-p.done)/float64(rate)*float64(time.Second)).Round(time.Second).String()
 	}
 	label := p.label
 	if l := visibleLen(label); l < 12 {
@@ -138,12 +138,4 @@ func commas(n int) string {
 		return "-" + b.String()
 	}
 	return b.String()
-}
-
-func humanDuration(d time.Duration) string {
-	d = d.Round(time.Second)
-	if d < time.Minute {
-		return fmt.Sprintf("%ds", int(d.Seconds()))
-	}
-	return fmt.Sprintf("%dm%02ds", int(d.Minutes()), int(d.Seconds())%60)
 }

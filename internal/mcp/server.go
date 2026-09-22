@@ -150,7 +150,7 @@ func (h *handlers) service(file string, note *notifier) (*query.Service, error) 
 		return svc, nil
 	}
 	base := filepath.Base(abs)
-	svc, err := query.OpenNotify(abs, false, func() {
+	svc, err := query.OpenWith(abs, false, func() {
 		note.start("indexing " + base)
 	})
 	if err != nil {

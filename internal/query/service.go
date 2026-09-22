@@ -30,18 +30,13 @@ type Service struct {
 }
 
 func Open(figPath string) (*Service, error) {
-	return OpenWith(figPath, false)
+	return OpenWith(figPath, false, nil)
 }
 
 // OpenWith opens the index. When force is true the structural index is rebuilt
-// even if the source file is unchanged.
-func OpenWith(figPath string, force bool) (*Service, error) {
-	return OpenNotify(figPath, force, nil)
-}
-
-// OpenNotify is OpenWith plus a callback invoked right before the structural
-// index is rebuilt, so callers can report indexing progress.
-func OpenNotify(figPath string, force bool, building func()) (*Service, error) {
+// even if the source file is unchanged. building, if non-nil, is invoked right
+// before a rebuild so callers can report indexing progress.
+func OpenWith(figPath string, force bool, building func()) (*Service, error) {
 	db, err := index.Open(workspace.DB(figPath))
 	if err != nil {
 		return nil, err

@@ -29,7 +29,7 @@ func cmdIndex(args []string) error {
 	}
 
 	status := output.Start("indexing " + filepath.Base(figFile))
-	svc, err := query.OpenWith(figFile, *force)
+	svc, err := query.OpenWith(figFile, *force, nil)
 	status.Stop()
 	if err != nil {
 		return err
