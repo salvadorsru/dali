@@ -354,5 +354,5 @@ through a blank import.
 ## License
 
 ```
-Unlicense — public domain.
+GNU General Public License v3.0
 ```
