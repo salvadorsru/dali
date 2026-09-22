@@ -149,7 +149,7 @@ func (db *DB) Write(doc *model.Document) error {
 	newFP := make(map[string]string, len(doc.All()))
 	var upsert []*model.Node
 	for _, n := range doc.All() {
-		fp := nodeFingerprint(n)
+		fp := NodeFingerprint(n)
 		newFP[n.ID] = fp
 		if oldFP[n.ID] == fp {
 			continue // unchanged: reuse row, node_assets and text_search
@@ -280,10 +280,10 @@ func (db *DB) Write(doc *model.Document) error {
 	return tx.Commit()
 }
 
-// nodeFingerprint derives a stable fingerprint from a node's own column values
+// NodeFingerprint derives a stable fingerprint from a node's own column values
 // and its asset hashes. Two nodes with the same fingerprint are structurally
 // identical and their rows can be safely reused.
-func nodeFingerprint(n *model.Node) string {
+func NodeFingerprint(n *model.Node) string {
 	h := sha256.New()
 	fmt.Fprintf(h, "%s\x00%s\x00%s\x00%s\x00%s\x00%s\x00",
 		n.ID, n.PageID, n.ParentID, n.Type, n.Name, n.Position)

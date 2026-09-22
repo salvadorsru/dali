@@ -36,6 +36,7 @@ var commands = map[string]func([]string) error{
 	"extract-assets":  cmdExtractAssets,
 	"lint":            cmdLint,
 	"analyze":         cmdAnalyze,
+	"diff":            cmdDiff,
 	"generate":        cmdGenerate,
 	"mcp":             cmdMCP,
 	"mcp-config":      cmdMCPConfig,
@@ -46,7 +47,7 @@ var commands = map[string]func([]string) error{
 }
 
 // figless commands do not operate on a fig file.
-var figless = map[string]bool{"serve": true, "stop": true, "clean": true, "version": true, "mcp-config": true}
+var figless = map[string]bool{"serve": true, "stop": true, "clean": true, "version": true, "mcp-config": true, "diff": true}
 
 func main() {
 	args := stripGlobals(os.Args[1:])
@@ -223,6 +224,7 @@ Commands:
   lint [--preset P]          Design + accessibility checks (recommended, strict, accessibility)
   analyze <kind>             Geometry stats: spacing | clusters | overlaps
                               (--min-ratio, --min-count, --limit)
+  diff <old> <new>           Compare two .fig versions: added, removed, modified
   index [--embeddings]       Build the structural index; --embeddings adds the vector index
                               (--force rebuilds even if up to date)
   extract-assets              Write images to <base>.assets/images
@@ -267,6 +269,7 @@ Examples:
   dali design.fig semantic-search "payment screen" --limit 10
   dali design.fig lint --preset accessibility
   dali design.fig analyze overlaps
+  dali diff old.fig new.fig
   dali design.fig generate --out ./src/components
   dali design.fig generate --id 1:123 --out ./components
   dali design.fig generate --name "VideoCaption" --out ./components

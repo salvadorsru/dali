@@ -32,6 +32,8 @@ rebuildable local index under `.dali/`.
 
 - **Design linting** — accessibility and design-quality checks with presets.
 - **Geometry analysis** — layout gaps, repeated sizes, sibling overlaps.
+- **Version diff** — match two `.fig` files by stable node ID and report added,
+  removed, modified nodes.
 
 **Codegen**
 
@@ -194,6 +196,7 @@ works.
 dali design.fig lint --preset recommended   # recommended | strict | accessibility
 dali design.fig analyze spacing             # spacing | clusters | overlaps
 dali design.fig analyze overlaps --min-ratio 0.3
+dali diff old.fig new.fig                   # added, removed, modified nodes
 ```
 
 ### Code generation
