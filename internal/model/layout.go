@@ -88,13 +88,8 @@ func layoutInfo(n *Node) map[string]any {
 			info[field] = v
 		}
 	}
-	if sw := asFloat(m["strokeWeight"]); sw > 0 {
-		for _, p := range paintsOf(n, "STROKE") {
-			if paintWellKnown(p) && paintVisible(p) {
-				info["strokeWeight"] = sw
-				break
-			}
-		}
+	if sw := n.strokeWeight(); sw > 0 {
+		info["strokeWeight"] = sw
 	}
 	for _, field := range []string{"strokeCap", "strokeJoin"} {
 		if v := asString(first(m, field)); v != "" {

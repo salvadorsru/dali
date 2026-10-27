@@ -10,10 +10,15 @@ import (
 // the authored stacking order (first element is the bottom layer, as stored in
 // the .fig), so callers can reason about overlaps without re-reading raw paint
 // payloads. Colors are #RRGGBB or #RRGGBBAA.
+//
+// StrokeWeight travels here because it is a node field that only means
+// anything next to the strokes, and this struct is already the node's
+// persisted paint payload — a separate column would buy nothing.
 type Paints struct {
-	Fills   []Paint  `json:"fills,omitempty"`
-	Strokes []Paint  `json:"strokes,omitempty"`
-	Effects []Effect `json:"effects,omitempty"`
+	Fills        []Paint  `json:"fills,omitempty"`
+	Strokes      []Paint  `json:"strokes,omitempty"`
+	Effects      []Effect `json:"effects,omitempty"`
+	StrokeWeight float64  `json:"stroke_weight,omitempty"`
 }
 
 // Paint is a single fill or stroke layer with its ergonomic visual fields.
@@ -55,7 +60,10 @@ type Effect struct {
 	BlendMode string  `json:"blend_mode,omitempty"`
 }
 
-// PaintStack returns the node's ordered fills, strokes and effects.
+// PaintStack returns the node's ordered fills, strokes and effects, plus its
+// stroke weight. It reads the raw payload, so it only carries data on nodes
+// straight out of Build; nodes read back from the index expose the same values
+// through PaintData.
 func (n *Node) PaintStack() Paints {
 	var p Paints
 	for _, f := range n.Fills() {
@@ -67,7 +75,25 @@ func (n *Node) PaintStack() Paints {
 	for _, e := range n.Effects() {
 		p.Effects = append(p.Effects, normalizeEffect(e))
 	}
+	p.StrokeWeight = n.strokeWeight()
 	return p
+}
+
+// strokeWeight returns the node's stroke weight, but only when it actually has
+// a stroke to apply it to. A weight with no visible stroke paints is not a
+// visual value, and reporting it would surface as a phantom override on
+// instances.
+func (n *Node) strokeWeight() float64 {
+	sw := asFloat(n.raw["strokeWeight"])
+	if sw <= 0 {
+		return 0
+	}
+	for _, p := range paintsOf(n, "STROKE") {
+		if paintWellKnown(p) && paintVisible(p) {
+			return sw
+		}
+	}
+	return 0
 }
 
 func normalizePaint(v any) Paint {

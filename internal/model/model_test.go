@@ -452,6 +452,36 @@ func TestVectorPath(t *testing.T) {
 	}
 }
 
+func TestStrokeWeight(t *testing.T) {
+	solid := func(v float64) map[string]any {
+		return map[string]any{"type": "SOLID", "color": map[string]any{"r": v, "g": 0, "b": 0, "a": 1.0}}
+	}
+
+	stroke := mkNode(2, "VECTOR", "Icon", g(0, 1), "a")
+	stroke["strokePaints"] = []any{solid(1)}
+	stroke["strokeWeight"] = 1.5
+
+	// A weight with no visible stroke is not a visual value, so it must not be
+	// reported — otherwise every instance of this node looks weight-overridden.
+	orphan := mkNode(3, "VECTOR", "Ghost", g(0, 1), "b")
+	orphan["strokePaints"] = []any{map[string]any{"type": "SOLID", "visible": false, "color": map[string]any{"r": 1, "g": 0, "b": 0, "a": 1.0}}}
+	orphan["strokeWeight"] = 1.5
+
+	doc := Build([]any{
+		mkNode(0, "DOCUMENT", "Doc", nil, ""),
+		mkNode(1, "CANVAS", "Page", g(0, 0), "a"),
+		stroke, orphan,
+	}, nil)
+
+	n, _ := doc.Node("0:2")
+	if got := n.PaintStack(); got.StrokeWeight != 1.5 {
+		t.Fatalf("stroke weight = %v, want 1.5", got.StrokeWeight)
+	}
+	if got, _ := doc.Node("0:3"); got.PaintStack().StrokeWeight != 0 {
+		t.Fatalf("stroke weight without a visible stroke = %v, want 0", got.PaintStack().StrokeWeight)
+	}
+}
+
 func TestStackLayoutAndAttributes(t *testing.T) {
 	row := mkNode(2, "FRAME", "Row", g(0, 1), "a")
 	row["stackMode"] = "HORIZONTAL"

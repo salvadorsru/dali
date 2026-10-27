@@ -138,8 +138,27 @@ func (d *Document) attach(inst, clone *Node) {
 	inst.Children = append(inst.Children, clone)
 }
 
+// clonePrefix marks a node materialized from a component rather than authored
+// where it sits.
+const clonePrefix = "inst:"
+
 func cloneID(instID, srcID string) string {
-	return "inst:" + instID + "." + srcID
+	return clonePrefix + instID + "." + srcID
+}
+
+// SourceID returns the component-side node a placement clone was copied from,
+// following nested instances down to the node that owns the geometry. It reports
+// false when id is not a clone, and when a clone id is malformed.
+func SourceID(id string) (string, bool) {
+	cloned := false
+	for strings.HasPrefix(id, clonePrefix) {
+		_, src, ok := strings.Cut(strings.TrimPrefix(id, clonePrefix), ".")
+		if !ok {
+			return "", false
+		}
+		id, cloned = src, true
+	}
+	return id, cloned
 }
 
 // boundPropIDs returns the component-prop def IDs a subtree node participates
