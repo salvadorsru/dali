@@ -13,8 +13,12 @@ import (
 
 type componentsOutput struct {
 	Components []NodeRef `json:"components"`
+	// Project is the design that answered, so a wrong selection is visible at once.
+	Project string `json:"project,omitempty" jsonschema:"project identity that answered this call"`
 	// Suggestions lists node names close to the filter when nothing matched.
 	Suggestions []string `json:"suggestions,omitempty"`
+	// Hint points at other projects when nothing matched but the catalog has more.
+	Hint string `json:"hint,omitempty" jsonschema:"where to look next when nothing matched"`
 }
 
 func (h *handlers) findComponents(ctx context.Context, req *mcp.CallToolRequest, in filterInput) (*mcp.CallToolResult, componentsOutput, error) {
@@ -29,10 +33,10 @@ func (h *handlers) findComponents(ctx context.Context, req *mcp.CallToolRequest,
 	if in.Name != "" {
 		nodes = filterByName(nodes, in.Name)
 		if len(nodes) == 0 {
-			return nil, componentsOutput{Suggestions: suggest(svc, in.Name)}, nil
+			return nil, componentsOutput{Project: h.project(in.File), Suggestions: suggest(svc, in.Name)}, nil
 		}
 	}
-	return nil, componentsOutput{Components: toRefs(nodes)}, nil
+	return nil, componentsOutput{Project: h.project(in.File), Components: toRefs(nodes)}, nil
 }
 
 func (h *handlers) findInstances(ctx context.Context, req *mcp.CallToolRequest, in filterInput) (*mcp.CallToolResult, componentsOutput, error) {
@@ -47,10 +51,10 @@ func (h *handlers) findInstances(ctx context.Context, req *mcp.CallToolRequest, 
 	if in.Name != "" {
 		nodes = filterByName(nodes, in.Name)
 		if len(nodes) == 0 {
-			return nil, componentsOutput{Suggestions: suggest(svc, in.Name)}, nil
+			return nil, componentsOutput{Project: h.project(in.File), Suggestions: suggest(svc, in.Name)}, nil
 		}
 	}
-	return nil, componentsOutput{Components: toRefs(nodes)}, nil
+	return nil, componentsOutput{Project: h.project(in.File), Components: toRefs(nodes)}, nil
 }
 
 func suggest(svc *query.Service, name string) []string {
@@ -101,7 +105,7 @@ type stylesOutput struct {
 // (FILL, STROKE, TEXT, EFFECT, GRID, LAYOUT); details=false drops the raw
 // authored payload for a compact listing.
 type styleInput struct {
-	File    string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
+	File    string `json:"file,omitempty" jsonschema:"project from list_figs or a path under the designs directory; omit it to use the active project and always omit it when dali serves a single design"`
 	Name    string `json:"name,omitempty" jsonschema:"optional style name substring filter"`
 	Kind    string `json:"kind,omitempty" jsonschema:"optional style kind filter: FILL, STROKE, TEXT, EFFECT, GRID, LAYOUT"`
 	Details *bool  `json:"details,omitempty" jsonschema:"include the authored raw JSON; set false for a compact listing (default true)"`
@@ -159,6 +163,7 @@ func (h *handlers) listPages(ctx context.Context, req *mcp.CallToolRequest, in f
 }
 
 type statsOutput struct {
+	Project  string         `json:"project,omitempty" jsonschema:"project identity that answered this call"`
 	File     string         `json:"file"`
 	Document string         `json:"document"`
 	Pages    int            `json:"pages"`
@@ -196,6 +201,7 @@ func (h *handlers) getStats(ctx context.Context, req *mcp.CallToolRequest, in fi
 		counts = map[string]int{}
 	}
 	return nil, statsOutput{
+		Project:  h.project(in.File),
 		File:     filepath.Base(abs),
 		Document: doc,
 		Pages:    len(pages),
@@ -205,7 +211,7 @@ func (h *handlers) getStats(ctx context.Context, req *mcp.CallToolRequest, in fi
 }
 
 type queryInput struct {
-	File  string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
+	File  string `json:"file,omitempty" jsonschema:"project from list_figs or a path under the designs directory; omit it to use the active project and always omit it when dali serves a single design"`
 	Query string `json:"query" jsonschema:"structural expression, e.g. type=FRAME AND visible=true, name~\"card\", text~price, width>=200, children(\"Header\")"`
 	Limit int    `json:"limit,omitempty" jsonschema:"max results, default 50"`
 }
@@ -232,8 +238,9 @@ func (h *handlers) queryFigma(ctx context.Context, req *mcp.CallToolRequest, in 
 	if len(nodes) > limit {
 		nodes = nodes[:limit]
 	}
-	out := componentsOutput{Components: toRefs(nodes)}
+	out := componentsOutput{Components: toRefs(nodes), Project: h.project(in.File)}
 	if len(out.Components) == 0 {
+		out.Hint = h.elsewhere(in.File)
 		if isXPath {
 			sugs, err := svc.SuggestXPath(in.Query, 8)
 			if err == nil {

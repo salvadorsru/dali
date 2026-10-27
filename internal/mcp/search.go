@@ -13,7 +13,7 @@ import (
 )
 
 type searchInput struct {
-	File        string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
+	File        string `json:"file,omitempty" jsonschema:"project from list_figs or a path under the designs directory; omit it to use the active project and always omit it when dali serves a single design"`
 	Mode        string `json:"mode,omitempty" jsonschema:"text (default), semantic or hybrid. text = exact keyword over node names and body text; semantic = conceptual meaning (requires the vector index); hybrid = fuse name/text and vectors when the index exists, falling back to plain text"`
 	Query       string `json:"query" jsonschema:"search text"`
 	Type        string `json:"type,omitempty" jsonschema:"restrict results to a node type, e.g. TEXT, FRAME or COMPONENT"`
@@ -25,8 +25,12 @@ type searchInput struct {
 
 type searchOutput struct {
 	Results []NodeRef `json:"results"`
+	// Project is the design that answered, so a wrong selection is visible at once.
+	Project string `json:"project,omitempty" jsonschema:"project identity that answered this call"`
 	// Suggestions lists layer names close to the query when nothing matched.
 	Suggestions []string `json:"suggestions,omitempty"`
+	// Hint points at other projects when nothing matched but the catalog has more.
+	Hint string `json:"hint,omitempty" jsonschema:"where to look next when nothing matched"`
 	// UsedEmbeddings reports whether semantic vectors contributed to hybrid
 	// results; false means the search fell back to full-text only.
 	UsedEmbeddings bool `json:"used_embeddings,omitempty"`
@@ -46,10 +50,21 @@ func (h *handlers) search(ctx context.Context, req *mcp.CallToolRequest, in sear
 	switch in.Mode {
 	case "semantic":
 		out, err := h.searchSemantic(ctx, svc, in, limit)
-		return nil, out, err
+		if err != nil {
+			return nil, searchOutput{}, err
+		}
+		out.Project = h.project(in.File)
+		return nil, out, nil
 	default:
 		out, err := h.searchUnified(ctx, svc, in, limit, in.Mode == "hybrid")
-		return nil, out, err
+		if err != nil {
+			return nil, searchOutput{}, err
+		}
+		out.Project = h.project(in.File)
+		if len(out.Results) == 0 {
+			out.Hint = h.elsewhere(in.File)
+		}
+		return nil, out, nil
 	}
 }
 
@@ -144,7 +159,7 @@ func ensureEmbedded(ctx context.Context, svc *query.Service, emb embed.Embedder,
 }
 
 type fileInput struct {
-	File string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
+	File string `json:"file,omitempty" jsonschema:"project from list_figs or a path under the designs directory; omit it to use the active project and always omit it when dali serves a single design"`
 }
 
 type indexOutput struct {

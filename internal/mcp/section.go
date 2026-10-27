@@ -12,7 +12,7 @@ import (
 )
 
 type sectionInput struct {
-	File   string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
+	File   string `json:"file,omitempty" jsonschema:"project from list_figs or a path under the designs directory; omit it to use the active project and always omit it when dali serves a single design"`
 	Name   string `json:"name" jsonschema:"layer name to resolve, case-insensitive substring"`
 	Page   string `json:"page,omitempty" jsonschema:"optional page name substring filter"`
 	Within string `json:"within,omitempty" jsonschema:"optional ancestor name substring the section must live under"`
@@ -24,6 +24,7 @@ type sectionInput struct {
 // the full subtree so a section can be reconstructed without further calls.
 type SectionView struct {
 	Node         NodeRef          `json:"node"`
+	Project      string           `json:"project,omitempty" jsonschema:"project identity that answered this call"`
 	Path         []NodeRef        `json:"path,omitempty"`
 	Parent       *NodeRef         `json:"parent,omitempty"`
 	Children     []NodeRef        `json:"children"`
@@ -45,7 +46,7 @@ func (h *handlers) sectionFigma(ctx context.Context, req *mcp.CallToolRequest, i
 		return nil, SectionView{}, err
 	}
 	if node == nil {
-		return nil, SectionView{Matches: matches}, nil
+		return nil, SectionView{Project: h.project(in.File), Matches: matches}, nil
 	}
 	c, err := svc.Context(node.ID)
 	if err != nil || c == nil || c.Node == nil {
@@ -53,6 +54,7 @@ func (h *handlers) sectionFigma(ctx context.Context, req *mcp.CallToolRequest, i
 	}
 	pages := pageNames(svc)
 	view := SectionView{
+		Project:  h.project(in.File),
 		Node:     toRef(c.Node),
 		Children: toRefs(c.Children),
 		Styles:   c.Styles,
