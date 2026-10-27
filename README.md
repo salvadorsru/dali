@@ -180,6 +180,7 @@ dali design.fig children 123:456    # direct children
 dali design.fig parent 123:456      # parent node
 dali design.fig subtree 123:456     # whole subtree (--depth N to cap it)
 dali design.fig node 123:456        # one node's geometry and styles
+dali design.fig vector 123:456      # exact SVG of the vectors under it
 ```
 
 ### Search
@@ -323,6 +324,7 @@ get_dependents   impact analysis of component placement
 get_styles       list style definitions
 get_tokens       aggregate design tokens (incl. fonts, variables)
 get_usages       list page placements of a component
+get_vector       exact SVG of the vectors under a node, with local overrides
 index_embeddings build the vector index (the only embedding builder)
 list_figs        list projects under the designs directory (context mode)
 list_pages       list document pages
