@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/salvadorsru/dali/internal/index"
-	"github.com/salvadorsru/dali/internal/testdoc"
 	"github.com/salvadorsru/dali/internal/model"
 	"github.com/salvadorsru/dali/internal/query"
+	"github.com/salvadorsru/dali/internal/testdoc"
 )
 
 // scaleSpec yields roughly 100k nodes, exercising the pipeline at the size a
