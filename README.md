@@ -146,6 +146,16 @@ or install straight from the module:
 go install github.com/salvadorsru/dali/cmd/dali@latest
 ```
 
+### Updating
+
+```bash
+dali update
+```
+
+Resolves the latest release, verifies it against the published checksums and
+replaces the running binary in place; it reports when there is nothing to do.
+Re-running `install.sh` does the same thing from outside the tool.
+
 ## Usage
 
 The general form is:

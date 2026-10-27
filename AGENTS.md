@@ -227,6 +227,11 @@ go vet ./...
 Integration tests and the parser benchmark use `../dali.fig`; they are skipped
 automatically when unavailable.
 
+Releases are tag-driven: push a tag and run `goreleaser release --clean`
+(`.goreleaser.yaml` owns the ldflags that stamp `main.version`). `dali update`
+pulls the latest release, verifies `checksums.txt` and replaces the running
+binary, so keep the archive naming in `cmd/dali` in sync with goreleaser's.
+
 ---
 
 ## 🗄️ SQLite & FTS5

@@ -21,6 +21,7 @@ var commands = map[string]func([]string) error{
 	"node":            cmdNode,
 	"context":         cmdContext,
 	"vector":          cmdVector,
+	"update":          cmdUpdate,
 	"children":        cmdChildren,
 	"parent":          cmdParent,
 	"path":            cmdPath,
@@ -48,7 +49,7 @@ var commands = map[string]func([]string) error{
 }
 
 // figless commands do not operate on a fig file.
-var figless = map[string]bool{"serve": true, "stop": true, "clean": true, "version": true, "mcp-config": true, "diff": true}
+var figless = map[string]bool{"serve": true, "stop": true, "clean": true, "version": true, "update": true, "mcp-config": true, "diff": true}
 
 func main() {
 	args := stripGlobals(os.Args[1:])
@@ -252,6 +253,7 @@ Commands:
                               but --windsurf, --print to stdout) into the current
                               directory (--dir to override), merged with any
                               existing config
+  update                      Replace this binary with the latest release
   serve                       Keep the embedding server warm (reused later)
   stop                        Stop the managed embedding server
   clean                       Stop the server and delete the downloaded engine + model
