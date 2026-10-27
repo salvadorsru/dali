@@ -261,6 +261,41 @@ dali mcp-config --opencode        # also: cursor, claude, vscode, cline, roo, wi
 `--all` writes configs for every supported editor; existing config files are
 merged, never clobbered.
 
+### Starting the server
+
+The argument decides the mode:
+
+```bash
+dali /designs mcp                      # context: every design under the directory
+dali /designs/woments/woments.fig mcp  # figma: one design, mounted at startup
+```
+
+- **Context mode** (`dali /designs mcp`, or no argument for the current
+directory): every `.fig` and `.deck` below the directory is a project, named by
+its path relative to the directory without the extension (`woments/woments`).
+A directory that holds a single design still starts in context mode: it is a
+root with one project, not a mounted file.
+- **Figma mode** (`dali /designs/woments/woments.fig mcp`): the server serves
+exactly that design. `list_figs` and `use_figma` are not registered, tools never
+take `file`, and naming another design returns an error that explains the mode.
+
+### Catalog, selection, queries
+
+1. `list_figs` lists the projects under the root. It accepts an optional `name`
+   filter and `limit` (default 50), and reports `truncated` when more projects
+   matched. The catalog is scanned once per session; pass `refresh` to rescan
+   the directory.
+2. `use_figma` selects one project by its name from `list_figs` and returns the
+   confirmed name and absolute path. A partial name resolves when it fits a
+   single design, and a directory holding one design answers to its own name.
+3. Every later tool call defaults to that project and omits `file`. Passing
+   `file` switches to another project for that call. Every response reports the
+   `project` that answered it, and a search that matches nothing adds a `hint`
+   naming the other projects when the catalog holds more than one.
+
+When a request could match more than one design, list the candidates and ask
+the user; never guess.
+
 | Client      | Configuration                         |
 | ----------- | ------------------------------------- |
 | OpenCode    | `opencode.json`                       |
@@ -271,9 +306,9 @@ merged, never clobbered.
 | Roo Code    | `.roo/mcp.json`                       |
 | Windsurf    | `~/.codeium/windsurf/mcp_config.json` |
 
-### Search tools
+### Tools
 
-Structural/full-text/semantic tools are exposed to MCP clients:
+Tools exposed to MCP clients (`list_figs` and `use_figma` only in context mode):
 
 ```
 analyze_figma    design-quality checks (spacing, clusters, overlaps)
@@ -289,11 +324,13 @@ get_styles       list style definitions
 get_tokens       aggregate design tokens (incl. fonts, variables)
 get_usages       list page placements of a component
 index_embeddings build the vector index (the only embedding builder)
+list_figs        list projects under the designs directory (context mode)
 list_pages       list document pages
 lint_figma       design-quality and accessibility linting
 query_figma      structural DSL query over the document tree (leading "/" = XPath)
 search_figma     find nodes: mode = text | semantic | hybrid
 section_figma    resolve a named section/component with its subtree
+use_figma        select the project later calls default to (context mode)
 ```
 
 ### Search contracts

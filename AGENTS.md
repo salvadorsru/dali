@@ -116,6 +116,39 @@ Key rules:
 
 ---
 
+## 🗂️ Fig resolution
+
+Two **mutually exclusive** modes, chosen by the argument to `dali ... mcp`:
+**figma** mounts one design, **context** serves every design under a root.
+`list_figs` and `use_figma` exist only in context mode. Contracts that must not
+break:
+
+- **Identity per project**: a design is named by its path relative to the root,
+  without extension (`woments/marketing`); collision-prone names keep the
+  extension on both. Paths stay internal, reported only for the active project.
+- **Partial names resolve only when unique**: a directory holding one design
+  answers to its own name, and any identifier matching exactly one design
+  resolves, so switching stays one call. Two matches are still a miss.
+- **Never guess**: an unmatched or ambiguous identifier returns an error with
+  the available projects, never a closest match. The agent asks the user.
+- **Every response names its project**: responses carry `project`, the identity
+  that answered, so a wrong selection is visible immediately instead of
+  surfacing later as confusing results. A miss that could be a wrong project
+  adds `hint` with the other identities and the `use_figma` reminder.
+- **One lock per path**, held across `query.OpenWith`, so indexing one project
+  never blocks queries to another.
+- **Bounded LRU** of open services (`capacity`), never evicting the active
+  project.
+- **Catalog is O(N), once per session**: only `list_figs` with `refresh`
+  rescans; no other tool call walks the tree.
+
+Out of scope, on purpose: per-project vector indexes stay opt-in and belong to
+one active project (no multi-project embeddings), no multi-root catalog, no
+queries that fuse projects, and no `.dali` fallback when the designs folder is
+read-only (only the write error improves when the index cannot be written).
+
+---
+
 ## 📁 Files
 
 Dalí keeps the original `.fig` untouched:
