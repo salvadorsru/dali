@@ -20,6 +20,7 @@ var commands = map[string]func([]string) error{
 	"semantic-search": cmdSemanticSearch,
 	"node":            cmdNode,
 	"context":         cmdContext,
+	"vector":          cmdVector,
 	"children":        cmdChildren,
 	"parent":          cmdParent,
 	"path":            cmdPath,
@@ -213,6 +214,7 @@ Commands:
   semantic-search <query>     Vector search [--limit N] [--type T] [--page P] [--hybrid]
   node <id>                   Show one node
   context <id>                Path, parent, children, component, styles, assets
+  vector <id>                 Exact SVG of the vectors under a node, plus local paint overrides
   children <id>               Direct children
   parent <id>                 Parent node
   path <id>                   Root-to-node path
