@@ -22,7 +22,7 @@ func TestSectionTool(t *testing.T) {
 
 	ctx := context.Background()
 	ct, st := mcp.NewInMemoryTransports()
-	srv, h := newServer(sample, nil)
+	srv, h := newServer(sample, "", nil)
 	defer h.close()
 	go srv.Run(ctx, st)
 

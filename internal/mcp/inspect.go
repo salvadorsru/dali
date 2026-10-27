@@ -61,7 +61,7 @@ func enrich(svc *query.Service, ref *NodeRef, styles []model.Style) {
 }
 
 type idInput struct {
-	File string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
+	File string `json:"file,omitempty" jsonschema:"project from list_figs or a path under the designs directory; omit it to use the active project and always omit it when dali serves a single design"`
 	ID   string `json:"id" jsonschema:"node id, e.g. 123:456"`
 }
 
@@ -107,7 +107,7 @@ func (h *handlers) getContext(ctx context.Context, req *mcp.CallToolRequest, in 
 }
 
 type descendantsInput struct {
-	File  string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
+	File  string `json:"file,omitempty" jsonschema:"project from list_figs or a path under the designs directory; omit it to use the active project and always omit it when dali serves a single design"`
 	ID    string `json:"id" jsonschema:"node id, e.g. 123:456"`
 	Depth int    `json:"depth,omitempty" jsonschema:"max depth from the node's children; 0 (default) walks the whole subtree"`
 }

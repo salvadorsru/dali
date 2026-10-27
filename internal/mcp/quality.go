@@ -12,7 +12,7 @@ import (
 )
 
 type lintInput struct {
-	File   string `json:"file,omitempty" jsonschema:"fig file to lint; defaults to the one dali was started with"`
+	File   string `json:"file,omitempty" jsonschema:"project from list_figs or a path under the designs directory; omit it to use the active project and always omit it when dali serves a single design"`
 	Preset string `json:"preset,omitempty" jsonschema:"recommended (default), strict or accessibility"`
 }
 
@@ -35,7 +35,7 @@ func (h *handlers) lintFigma(ctx context.Context, req *mcp.CallToolRequest, in l
 }
 
 type analyzeInput struct {
-	File     string  `json:"file,omitempty" jsonschema:"fig file to analyze; defaults to the one dali was started with"`
+	File     string  `json:"file,omitempty" jsonschema:"project from list_figs or a path under the designs directory; omit it to use the active project and always omit it when dali serves a single design"`
 	Kind     string  `json:"kind" jsonschema:"spacing, clusters or overlaps"`
 	MinRatio float64 `json:"min_ratio,omitempty" jsonschema:"overlaps: minimum overlap ratio of the smaller box (default 0.1)"`
 	MinCount int     `json:"min_count,omitempty" jsonschema:"clusters: minimum repeats (default 3)"`

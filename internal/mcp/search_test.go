@@ -54,7 +54,7 @@ func tmpFig(t *testing.T) string {
 
 func handlerFor(t *testing.T, emb embed.Embedder) *handlers {
 	t.Helper()
-	_, h := newServer(tmpFig(t), emb)
+	_, h := newServer(tmpFig(t), "", emb)
 	t.Cleanup(h.close)
 	return h
 }

@@ -14,7 +14,7 @@ import (
 )
 
 type generateInput struct {
-	File      string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
+	File      string `json:"file,omitempty" jsonschema:"project from list_figs or a path under the designs directory; omit it to use the active project and always omit it when dali serves a single design"`
 	Component string `json:"component,omitempty" jsonschema:"node id to generate, e.g. 1:225"`
 	Name      string `json:"name,omitempty" jsonschema:"node name substring to resolve; omit both to generate every component"`
 	Tokens    string `json:"tokens,omitempty" jsonschema:"token format to include: css, style-dict or figma; empty omits tokens"`

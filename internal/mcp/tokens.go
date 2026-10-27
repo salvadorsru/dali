@@ -13,7 +13,7 @@ import (
 )
 
 type tokensInput struct {
-	File     string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
+	File     string `json:"file,omitempty" jsonschema:"project from list_figs or a path under the designs directory; omit it to use the active project and always omit it when dali serves a single design"`
 	Kind     string `json:"kind,omitempty" jsonschema:"which token families to return: color, type, layout or all (default all)"`
 	Name     string `json:"name,omitempty" jsonschema:"optional variable (name or set) and font family name substring filter"`
 	MinUsage int    `json:"min_usage,omitempty" jsonschema:"drop colours used fewer than this many times; default 0"`
@@ -96,7 +96,7 @@ func (h *handlers) getTokens(ctx context.Context, req *mcp.CallToolRequest, in t
 }
 
 type usagesInput struct {
-	File  string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
+	File  string `json:"file,omitempty" jsonschema:"project from list_figs or a path under the designs directory; omit it to use the active project and always omit it when dali serves a single design"`
 	ID    string `json:"id" jsonschema:"component id, e.g. 654:10967"`
 	Limit int    `json:"limit,omitempty" jsonschema:"max placements to list, default 50"`
 }
@@ -139,7 +139,7 @@ func (h *handlers) getUsages(ctx context.Context, req *mcp.CallToolRequest, in u
 }
 
 type dependentsInput struct {
-	File string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
+	File string `json:"file,omitempty" jsonschema:"project from list_figs or a path under the designs directory; omit it to use the active project and always omit it when dali serves a single design"`
 	ID   string `json:"id" jsonschema:"component id, e.g. 654:10967"`
 }
 
@@ -180,7 +180,7 @@ type componentProp struct {
 }
 
 type componentInput struct {
-	File string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
+	File string `json:"file,omitempty" jsonschema:"project from list_figs or a path under the designs directory; omit it to use the active project and always omit it when dali serves a single design"`
 	ID   string `json:"id" jsonschema:"component id, e.g. 1:225"`
 }
 

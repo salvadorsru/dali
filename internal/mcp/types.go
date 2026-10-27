@@ -115,6 +115,6 @@ func layoutDataOf(styles []model.Style) map[string]any {
 // filterInput is shared by every tool that lists a collection with an optional
 // name substring filter.
 type filterInput struct {
-	File string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
+	File string `json:"file,omitempty" jsonschema:"project from list_figs or a path under the designs directory; omit it to use the active project and always omit it when dali serves a single design"`
 	Name string `json:"name,omitempty" jsonschema:"optional name substring filter"`
 }

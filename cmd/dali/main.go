@@ -89,26 +89,19 @@ func main() {
 	if _, ok := commands[name]; !ok {
 		fail(fmt.Errorf("unknown command %q", name))
 	}
-	if !figless[name] {
+	// mcp resolves its own mode from the raw argument: a folder stays a folder
+	// (context mode), only a design file is collapsed to a single design.
+	if !figless[name] && name != "mcp" {
 		if figFile == "" {
 			figFile = figDir()
 		}
 		info, err := os.Stat(figFile)
 		if err != nil {
-			if name == "mcp" {
-				figFile = ""
-			} else {
-				fail(fmt.Errorf("cannot read %q: %w", figFile, err))
-			}
+			fail(fmt.Errorf("cannot read %q: %w", figFile, err))
 		} else if info.IsDir() {
 			found, err := detectFig(figFile)
 			if err != nil {
-				// mcp can run without a default fig: tools take a "file" argument.
-				if name == "mcp" {
-					figFile = ""
-				} else {
-					fail(err)
-				}
+				fail(err)
 			} else {
 				figFile = found
 			}
@@ -147,6 +140,20 @@ func figDir() string {
 		return "."
 	}
 	return wd
+}
+
+// mcpMode picks the server mode from the fig argument. A design file serves
+// that one design; a directory, or no argument at all, serves every design
+// found under it.
+func mcpMode(file string) (fig, root string) {
+	switch strings.ToLower(filepath.Ext(file)) {
+	case ".fig", ".deck":
+		return file, ""
+	}
+	if file != "" {
+		return "", file
+	}
+	return "", figDir()
 }
 
 func detectFig(dir string) (string, error) {
@@ -195,7 +202,7 @@ func usage() {
 	fmt.Fprint(os.Stderr, `dali - Figma .fig knowledge engine
 
 Usage:
-  dali [<file.fig>] <command> [args]
+  dali [<file.fig>|<dir>] <command> [args]
 
 The file (or its directory) is optional: if omitted, the single .fig in the
 current directory is used.
@@ -231,7 +238,12 @@ Commands:
   generate                    Generate semantic HTML from components
                                (--out DIR, --id ID | --name NAME,
                                --tokens css|style-dict|figma, --style inline|tailwind)
-  mcp                         Run the MCP server over stdio
+  mcp                         Run the MCP server over stdio. The argument picks
+                              the mode: dali <dir> mcp = context, every design
+                              under the directory is a project and clients use
+                              list_figs + use_figma; dali <file.fig> mcp = figma,
+                              that one design is mounted, list_figs/use_figma do
+                              not exist and tools never take "file"
   mcp-config [--src FILE]     Write MCP config per editor (--opencode, --cursor,
                               --claude, --vscode, --cline, --roo, --windsurf;
                               --all includes Windsurf's global file, default all
@@ -276,5 +288,7 @@ Examples:
   dali design.fig generate --style tailwind
   dali inspect                 # uses ./design.fig
   dali . index                 # indexes the .fig in this directory
+  dali ./designs mcp           # MCP context mode: every design under ./designs
+  dali ./designs/app.fig mcp   # MCP figma mode: only that design
 `)
 }

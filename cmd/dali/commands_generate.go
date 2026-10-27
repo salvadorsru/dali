@@ -100,5 +100,6 @@ func cmdExtractAssets(args []string) error {
 
 func cmdMCP(args []string) error {
 	mcp.Version = version
-	return mcp.Serve(context.Background(), figFile)
+	fig, root := mcpMode(figFile)
+	return mcp.Serve(context.Background(), fig, root)
 }

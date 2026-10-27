@@ -18,7 +18,7 @@ import (
 )
 
 type imageInput struct {
-	File string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
+	File string `json:"file,omitempty" jsonschema:"project from list_figs or a path under the designs directory; omit it to use the active project and always omit it when dali serves a single design"`
 	Hash string `json:"hash,omitempty" jsonschema:"image hash from find_assets"`
 	Name string `json:"name,omitempty" jsonschema:"asset name; used to resolve the hash when hash is empty"`
 }

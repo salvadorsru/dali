@@ -11,7 +11,7 @@ import (
 )
 
 type extractInput struct {
-	File string `json:"file,omitempty" jsonschema:"fig file to query; defaults to the one dali was started with"`
+	File string `json:"file,omitempty" jsonschema:"project from list_figs or a path under the designs directory; omit it to use the active project and always omit it when dali serves a single design"`
 	Name string `json:"name,omitempty" jsonschema:"optional asset name substring filter"`
 	Hash string `json:"hash,omitempty" jsonschema:"optional single image hash; when set only that asset is extracted"`
 }
