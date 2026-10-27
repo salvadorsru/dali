@@ -58,7 +58,7 @@ func BuildNodeSpec(svc *query.Service, node *model.Node) ir.NodeSpec {
 		spec.Text = TranslateText(node)
 	}
 	if node.Type == model.TypeVector && node.Path != "" {
-		spec.Vector = ir.VectorSpec{Path: node.Path}
+		spec.Vector = ir.VectorSpec{Path: node.Path, Width: node.Width, Height: node.Height}
 	}
 
 	// Get children recursively

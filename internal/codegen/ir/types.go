@@ -89,9 +89,12 @@ type TextRunSpec struct {
 	LetterSpacing float64
 }
 
-// VectorSpec holds vector path data.
+// VectorSpec holds vector path data in the node's own size space, so Width and
+// Height are the viewBox the path is authored against — not the rendered size.
 type VectorSpec struct {
-	Path string
+	Path   string
+	Width  float64
+	Height float64
 }
 
 // LayoutSpec translates Figma auto-layout to CSS flexbox/grid.

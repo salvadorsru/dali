@@ -195,7 +195,14 @@ func (g *HTMLGenerator) renderChildElement(child ir.NodeSpec, indent string) str
 	b.WriteString(g.textBlock(child.Text, indent+"  "))
 
 	if child.Vector.Path != "" {
-		b.WriteString(fmt.Sprintf("%s  <svg viewBox=\"0 0 100 100\" style=\"width:100%%;height:100%%\"><path d=\"%s\" fill=\"currentColor\" /></svg>\n", indent, child.Vector.Path))
+		// The path is authored in the node's own size space, so the viewBox has
+		// to be that size. A fixed 100x100 box shrinks every icon that is not
+		// exactly 100 wide into the top-left corner.
+		var box string
+		if child.Vector.Width > 0 && child.Vector.Height > 0 {
+			box = fmt.Sprintf(" viewBox=\"0 0 %g %g\"", child.Vector.Width, child.Vector.Height)
+		}
+		b.WriteString(fmt.Sprintf("%s  <svg%s style=\"width:100%%;height:100%%\"><path d=\"%s\" fill=\"currentColor\" /></svg>\n", indent, box, child.Vector.Path))
 	}
 
 	b.WriteString(fmt.Sprintf("%s</%s>\n", indent, tag))

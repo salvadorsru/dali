@@ -19,6 +19,35 @@ func wrapPure(children ...ir.NodeSpec) ir.NodeSpec {
 	return ir.NodeSpec{Type: "FRAME", Name: "wrapper", Children: children}
 }
 
+func TestGenerateVectorViewBox(t *testing.T) {
+	vec := ir.NodeSpec{Type: "VECTOR", Name: "Icon", Vector: ir.VectorSpec{Path: "M0 0 L13.5 0 Z", Width: 13.5, Height: 13.5}}
+	spec := ir.ComponentSpec{
+		ID:       "1:1",
+		Name:     "icon",
+		Type:     "FRAME",
+		Children: []ir.NodeSpec{{Type: "FRAME", Name: "root", Children: []ir.NodeSpec{vec}}},
+	}
+	out := testGen(spec)
+	if !strings.Contains(out, `viewBox="0 0 13.5 13.5"`) {
+		t.Fatalf("expected the node size as viewBox: %s", out)
+	}
+	if strings.Contains(out, "0 0 100 100") {
+		t.Fatalf("fixed 100x100 viewBox leaked back: %s", out)
+	}
+
+	// A vector with no measured size has no box to declare; the coordinates
+	// then stand as user units instead of being squeezed into a wrong one.
+	unsized := vec
+	unsized.Vector.Width, unsized.Vector.Height = 0, 0
+	out = testGen(ir.ComponentSpec{
+		ID: "1:2", Name: "icon", Type: "FRAME",
+		Children: []ir.NodeSpec{{Type: "FRAME", Name: "root", Children: []ir.NodeSpec{unsized}}},
+	})
+	if strings.Contains(out, "viewBox") {
+		t.Fatalf("expected no viewBox for an unsized vector: %s", out)
+	}
+}
+
 func TestGenerateElidesEmptyWrapper(t *testing.T) {
 	spec := ir.ComponentSpec{
 		ID:   "1:1",
@@ -130,9 +159,9 @@ func TestGenerateKeepsStyledWrapper(t *testing.T) {
 
 func TestGenerateInlineStyles(t *testing.T) {
 	spec := ir.ComponentSpec{
-		ID:   "1:7",
-		Name: "row",
-		Type: "FRAME",
+		ID:     "1:7",
+		Name:   "row",
+		Type:   "FRAME",
 		Layout: ir.LayoutSpec{Mode: "FLEX", Direction: "row", Gap: 8, JustifyContent: "flex-start", AlignItems: "stretch"},
 		Styles: ir.StyleSpec{Visible: true, Fills: []ir.FillSpec{{Type: "SOLID", Color: "#FF0000", Visible: true}}},
 		Children: []ir.NodeSpec{
@@ -154,9 +183,9 @@ func TestGenerateInlineStyles(t *testing.T) {
 
 func TestGenerateTailwindPreservesClasses(t *testing.T) {
 	spec := ir.ComponentSpec{
-		ID:   "1:8",
-		Name: "row",
-		Type: "FRAME",
+		ID:     "1:8",
+		Name:   "row",
+		Type:   "FRAME",
 		Layout: ir.LayoutSpec{Mode: "FLEX", Direction: "row", Gap: 8, JustifyContent: "flex-start", AlignItems: "stretch"},
 		Children: []ir.NodeSpec{
 			{Type: "TEXT", Name: "a", Text: ir.TextSpec{Content: "A"}},
